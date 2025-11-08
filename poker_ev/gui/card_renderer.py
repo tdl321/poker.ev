@@ -2,9 +2,6 @@
 Card renderer for converting texasholdem cards to pygame sprites
 """
 
-import sys
-sys.path.insert(0, './texasholdem')
-
 import pygame
 from texasholdem import Card
 from typing import Dict, Optional

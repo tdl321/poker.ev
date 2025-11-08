@@ -2,9 +2,6 @@
 Event handler for converting Pygame events to game actions
 """
 
-import sys
-sys.path.insert(0, './texasholdem')
-
 import pygame
 from texasholdem import ActionType
 from typing import Dict, Optional, Callable

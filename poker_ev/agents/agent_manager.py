@@ -2,9 +2,6 @@
 Agent manager for coordinating AI opponents
 """
 
-import sys
-sys.path.insert(0, './texasholdem')
-
 from texasholdem import TexasHoldEm, ActionType
 from texasholdem.agents import random_agent, call_agent
 from typing import Tuple, Callable, Dict

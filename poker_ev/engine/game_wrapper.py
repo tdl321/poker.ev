@@ -4,9 +4,6 @@ Game engine wrapper for texasholdem
 This module provides a GUI-friendly interface to texasholdem's TexasHoldEm class.
 """
 
-import sys
-sys.path.insert(0, './texasholdem')
-
 from texasholdem import TexasHoldEm, Card, ActionType, HandPhase, PlayerState
 from typing import List, Dict, Optional, Tuple
 

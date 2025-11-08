@@ -2,9 +2,6 @@
 Main Pygame GUI for poker.ev
 """
 
-import sys
-sys.path.insert(0, './texasholdem')
-
 import pygame
 import os
 from pathlib import Path
