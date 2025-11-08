@@ -1,11 +1,13 @@
 # poker.ev - AI Poker Application
 
 A production-quality Texas Hold'Em poker game that combines:
-- **texasholdem's** rock-solid game engine (fast evaluation, WSOP-compliant rules)
-- **pyker's** beautiful 8-bit graphical interface
-- **Advanced AI agents** with multiple playing styles
+- **[texasholdem](https://github.com/SirRender00/texasholdem)** - Rock-solid game engine (fast evaluation, WSOP-compliant rules)
+- **[pyker](https://github.com/nicolafan/pyker)** - Beautiful 8-bit graphical interface and assets
+- **Advanced AI agents** - Multiple playing styles and strategies
 
 ![poker.ev Screenshot](https://via.placeholder.com/800x600?text=poker.ev+Screenshot)
+
+> **Note:** This project integrates code and assets from [texasholdem](https://github.com/SirRender00/texasholdem) (game engine) and [pyker](https://github.com/nicolafan/pyker) (UI/assets). See [Credits](#credits) section below for full attribution.
 
 ## Features
 
@@ -336,39 +338,117 @@ poker.ev/
 
 ## Architecture
 
-poker.ev uses a 3-layer architecture:
+poker.ev uses a 3-layer architecture that integrates texasholdem's engine with pyker's visual assets:
 
 ```
-┌─────────────────────────────────────┐
-│      Poker.ev Application           │
-└─────────────────────────────────────┘
-              │
-    ┌─────────┼─────────┐
-    │         │         │
-    ▼         ▼         ▼
-┌────────┬────────┬────────┐
-│ Engine │   AI   │  GUI   │
-│ Layer  │ Layer  │ Layer  │
-│        │        │        │
-│texas   │texas   │ pyker  │
-│holdem  │holdem  │(pygame)│
-└────────┴────────┴────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                  Poker.ev Application                       │
+│                        (main.py)                            │
+└─────────────────────────────────────────────────────────────┘
+                            │
+              ┌─────────────┼─────────────┐
+              │             │             │
+              ▼             ▼             ▼
+    ┌─────────────┬─────────────┬─────────────┐
+    │   Engine    │     AI      │     GUI     │
+    │   Layer     │    Layer    │    Layer    │
+    │             │             │             │
+    │ PokerGame   │ AgentMgr    │ PygameGUI   │
+    │  wrapper    │  + Custom   │  + Event    │
+    │     ↓       │   Agents    │   Handler   │
+    │ texasholdem │     ↓       │     ↓       │
+    │   (pip)     │ texasholdem │ pyker assets│
+    └─────────────┴─────────────┴─────────────┘
 ```
 
-### Layer 1: Game Engine (texasholdem)
-- Core game logic and rules
-- Fast hand evaluation
-- State management
+### Integration Details
 
-### Layer 2: AI Layer
-- Agent management
-- Multiple AI strategies
-- Extensible agent framework
+#### Layer 1: Game Engine
+**Source:** [texasholdem](https://github.com/SirRender00/texasholdem) (installed via pip)
+- **Core Logic:** `TexasHoldEm` class handles all poker rules
+- **Wrapper:** `PokerGame` (`poker_ev/engine/game_wrapper.py`)
+  - Translates texasholdem's internal API to GUI-friendly format
+  - Provides simplified methods: `get_game_state()`, `take_action()`, etc.
+  - Handles API quirks and edge cases
 
-### Layer 3: GUI Layer (pyker + custom)
-- Pygame rendering
-- Event handling
-- User interaction
+#### Layer 2: AI Layer
+**Source:** Custom + texasholdem agents
+- **Manager:** `AgentManager` (`poker_ev/agents/agent_manager.py`)
+- **Built-in Agents:** `random_agent`, `call_agent` from texasholdem
+- **Custom Agents:** Aggressive, Tight (custom implementations)
+- **Extensible:** Easy to add new AI strategies
+
+#### Layer 3: GUI Layer
+**Source:** [pyker](https://github.com/nicolafan/pyker) assets + custom code
+- **Assets:** Cards, buttons, fonts from pyker (`poker_ev/assets/`)
+- **Rendering:** `CardRenderer` (`poker_ev/gui/card_renderer.py`)
+  - Converts texasholdem `Card` objects → pyker sprite filenames
+  - Maps integer suit values (1,2,4,8) → sprite names ('S','H','D','C')
+- **Interface:** `PygameGUI` (`poker_ev/gui/pygame_gui.py`)
+  - Custom pygame interface (not from pyker)
+  - Uses pyker's visual style and assets
+- **Events:** `EventHandler` (`poker_ev/gui/event_handler.py`)
+  - Keyboard/mouse → game actions
+
+### Data Flow Example
+
+```
+User clicks "RAISE" button
+         ↓
+EventHandler detects click
+         ↓
+Returns ActionType.RAISE + amount
+         ↓
+PygameGUI calls game.take_action()
+         ↓
+PokerGame wrapper validates action
+         ↓
+Calls engine.take_action() (texasholdem)
+         ↓
+texasholdem updates game state
+         ↓
+PygameGUI calls game.get_game_state()
+         ↓
+PokerGame queries engine.pots, engine.board, etc.
+         ↓
+Returns formatted state dict
+         ↓
+CardRenderer converts Cards to sprite paths
+         ↓
+PygameGUI renders updated table
+         ↓
+User sees new game state
+```
+
+### Key Integration Challenges Solved
+
+1. **Card Representation**
+   - texasholdem uses `Card` objects with integer suits (1,2,4,8)
+   - pyker expects string filenames like "AS.png", "KH.png"
+   - **Solution:** `CardRenderer` maps between the two
+
+2. **Action Validation**
+   - texasholdem uses `get_available_moves()` returning `MoveIterator`
+   - GUI needs simple list of valid actions
+   - **Solution:** `PokerGame._get_valid_actions()` extracts action types
+
+3. **Pot Calculation**
+   - texasholdem stores pots separately from current bets
+   - GUI needs total pot including current round
+   - **Solution:** Sum pot amounts + player bets
+
+4. **Player State**
+   - texasholdem uses `PlayerState` enum (SKIP, OUT, IN, TO_CALL, ALL_IN)
+   - GUI needs simple active/folded/all-in flags
+   - **Solution:** Map PlayerState values to GUI-friendly booleans
+
+### Why Not Fork?
+
+Instead of forking either project, poker.ev creates a **composition** architecture:
+- ✅ **Upgradable:** Can update texasholdem via `pip install --upgrade`
+- ✅ **Modular:** Each layer can be swapped independently
+- ✅ **Clean Attribution:** Clear what's original vs. integrated
+- ✅ **Testable:** Each layer can be tested independently
 
 ## Creating Custom AI Agents
 
@@ -483,17 +563,90 @@ mypy poker_ev/
 ## Credits
 
 ### Built With
-- **[texasholdem](https://github.com/SirRender00/texasholdem)** by SirRender00 - Production-ready poker engine
-- **[pyker](https://github.com/nicolafan/pyker)** by nicolafan - Beautiful 8-bit graphics and assets
-- **[Pygame](https://www.pygame.org/)** - Game development library
 
-### Assets
-- Card graphics by Michael Myers ([8-Bit Deck on itch.io](https://drawsgood.itch.io/8bit-deck-card-assets))
-- Pixel fonts from Pixeloid font family
+This project stands on the shoulders of giants. poker.ev integrates and extends code from these excellent open-source projects:
+
+#### **[texasholdem](https://github.com/SirRender00/texasholdem)** by SirRender00
+- **License:** MIT
+- **Used for:** Core game engine, hand evaluation, game state management
+- **What we use:**
+  - `TexasHoldEm` game engine class
+  - `Card`, `ActionType`, `HandPhase`, `PlayerState` types
+  - Built-in agents (`random_agent`, `call_agent`)
+  - `get_available_moves()`, `min_raise()`, and other API methods
+- **Installed via:** pip (`pip install texasholdem`)
+- **Repository:** https://github.com/SirRender00/texasholdem
+- **Description:** Production-ready Texas Hold'Em poker engine with ultra-fast hand evaluation using the Cactus Kev algorithm. WSOP-compliant rules.
+
+#### **[pyker](https://github.com/nicolafan/pyker)** by nicolafan
+- **License:** MIT
+- **Used for:** UI inspiration, graphical assets, pixel art design
+- **What we use:**
+  - 8-bit style card images (all 52 cards + backs)
+  - Action button graphics (fold, call, check, raise)
+  - Pixel fonts (PixeloidSans, PixeloidMono)
+  - Dealer button and chip graphics
+  - Overall retro aesthetic design
+- **Assets location:** `poker_ev/assets/`
+- **Repository:** https://github.com/nicolafan/pyker
+- **Description:** Beautiful pygame-based poker game with retro 8-bit graphics and clean architecture.
+
+#### **[Pygame](https://www.pygame.org/)**
+- **License:** LGPL
+- **Used for:** Graphics rendering, event handling, game loop
+- **Repository:** https://github.com/pygame/pygame
+
+### Original Asset Creators
+
+- **Card Graphics:** Michael Myers - [8-Bit Deck on itch.io](https://drawsgood.itch.io/8bit-deck-card-assets)
+- **Pixel Fonts:** Pixeloid font family by [GGBotNet](https://ggbot.itch.io/pixeloid-font)
+
+### What poker.ev Adds
+
+This project is **not** a simple fork - it represents a significant integration and extension:
+
+**Original Contributions:**
+- Complete integration layer between texasholdem engine and pygame GUI
+- `PokerGame` wrapper class for GUI-friendly API (`poker_ev/engine/game_wrapper.py`)
+- `CardRenderer` for converting texasholdem cards to pyker sprites (`poker_ev/gui/card_renderer.py`)
+- `EventHandler` for pygame event processing (`poker_ev/gui/event_handler.py`)
+- `PygameGUI` main interface combining both projects (`poker_ev/gui/pygame_gui.py`)
+- `AgentManager` with multiple AI personalities (`poker_ev/agents/agent_manager.py`)
+  - Aggressive agent (raises 70% of the time)
+  - Tight agent (folds 60% of the time)
+  - Extensible agent framework
+- API bug fixes and improvements:
+  - Fixed action validation using `get_available_moves()`
+  - Fixed pot calculation to include player bets
+  - Fixed card suit representation (integers vs strings)
+  - Fixed player state checking
+- Comprehensive test suite (`test_components.py`)
+- Documentation and integration guides
+- Example scripts and setup automation
+
+**Why This Integration Matters:**
+- **texasholdem** provides a bulletproof engine but no GUI
+- **pyker** provides beautiful graphics but uses a custom game engine
+- **poker.ev** combines the best of both: production game engine + beautiful UI
+
+### Acknowledgments
+
+Special thanks to:
+- **[@SirRender00](https://github.com/SirRender00)** for creating the excellent texasholdem engine
+- **[@nicolafan](https://github.com/nicolafan)** for the beautiful pyker graphics and design inspiration
+- The Pygame community for the amazing game development library
 
 ## License
 
 MIT License - see LICENSE file for details
+
+**Note on Licenses:**
+- This project (poker.ev) is released under MIT License
+- texasholdem library: MIT License
+- pyker assets and code: MIT License
+- Pygame: LGPL
+
+All dependencies respect their original licenses. See individual projects for details.
 
 ## Contributing
 
