@@ -1,0 +1,18 @@
+# Core dependencies
+pygame>=2.1.2
+numpy>=1.24.0
+
+# Poker engine - install from cloned repo
+# Run: pip install -e ./texasholdem
+
+# Testing
+pytest>=7.2.0
+pytest-cov>=4.0.0
+
+# Code quality
+black>=23.0.0
+mypy>=0.991
+
+# Optional: Machine Learning (for future ML agents)
+# torch>=2.0.0
+# tensorflow>=2.12.0
