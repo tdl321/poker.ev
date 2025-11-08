@@ -12,6 +12,12 @@ from poker_ev.gui.event_handler import EventHandler
 from poker_ev.agents.agent_manager import AgentManager
 from typing import Optional
 import math
+import threading
+
+# Chat components
+from poker_ev.gui.chat.chat_panel import ChatPanel
+from poker_ev.llm.poker_advisor import PokerAdvisor
+from poker_ev.llm.game_context import GameContextProvider
 
 
 class PygameGUI:
@@ -34,7 +40,7 @@ class PygameGUI:
     BUTTON_HOVER = (60, 60, 60)
 
     def __init__(self, game: PokerGame, agent_manager: AgentManager,
-                 window_size: tuple = (1400, 900)):
+                 window_size: tuple = (1400, 900), enable_chat: bool = True):
         """
         Initialize the Pygame GUI
 
@@ -42,16 +48,18 @@ class PygameGUI:
             game: PokerGame instance
             agent_manager: AgentManager for AI players
             window_size: (width, height) of the window
+            enable_chat: Enable AI poker advisor chat panel
         """
         pygame.init()
 
         self.game = game
         self.agent_manager = agent_manager
         self.window_size = window_size
+        self.enable_chat = enable_chat
 
         # Create window
         self.screen = pygame.display.set_mode(window_size)
-        pygame.display.set_caption("Poker.ev - AI Poker Application")
+        pygame.display.set_caption("Poker.ev - AI Poker Application + Advisor")
 
         # Load assets
         self.load_assets()
@@ -69,8 +77,79 @@ class PygameGUI:
         self.message = ""
         self.message_timer = 0
 
+        # Chat panel (if enabled)
+        self.chat_panel = None
+        self.poker_advisor = None
+        if self.enable_chat:
+            self._init_chat_panel()
+
         # Player position on table (positions around ellipse)
         self.player_positions = self._calculate_player_positions()
+
+    def _init_chat_panel(self):
+        """Initialize the AI poker advisor chat panel"""
+        # Calculate chat panel position (right side)
+        chat_width = 400
+        chat_panel_rect = pygame.Rect(
+            self.window_size[0] - chat_width,
+            0,
+            chat_width,
+            self.window_size[1]
+        )
+
+        # Create chat panel with retro fonts
+        self.chat_panel = ChatPanel(
+            panel_rect=chat_panel_rect,
+            font_small=self.font_small,
+            font_medium=self.font_medium,
+            font_large=self.font_large,
+            on_message_send=self._handle_chat_message
+        )
+
+        # Initialize poker advisor
+        try:
+            game_context = GameContextProvider(self.game)
+            self.poker_advisor = PokerAdvisor(
+                game_context_provider=game_context
+            )
+            self.set_message("Poker Advisor Ready! Press 'H' for help")
+        except Exception as e:
+            self.set_message(f"Chat unavailable: {str(e)}")
+            self.enable_chat = False
+
+    def _handle_chat_message(self, message: str):
+        """
+        Handle user chat message with streaming response
+
+        Args:
+            message: User's message
+        """
+        if not self.poker_advisor:
+            self.chat_panel.add_ai_response("Poker advisor not available.")
+            return
+
+        # Get current game state
+        game_state = self.game.get_game_state()
+
+        # Run in thread to avoid blocking game
+        def stream_response():
+            try:
+                # Set typing indicator
+                self.chat_panel.set_typing(True)
+
+                # Collect full response while streaming
+                full_response = ""
+                for chunk in self.poker_advisor.get_advice_stream(message, game_state):
+                    full_response += chunk
+
+                # Add complete response to chat
+                self.chat_panel.add_ai_response(full_response)
+
+            except Exception as e:
+                self.chat_panel.add_ai_response(f"Error: {str(e)}")
+
+        thread = threading.Thread(target=stream_response, daemon=True)
+        thread.start()
 
     def load_assets(self):
         """Load all assets from pyker"""
@@ -153,7 +232,13 @@ class PygameGUI:
                 if event.type == pygame.QUIT:
                     running = False
                 else:
-                    self.event_handler.handle_event(event)
+                    # Handle chat events first (if chat is active, it takes priority)
+                    if self.chat_panel:
+                        handled = self.chat_panel.handle_event(event)
+                        if not handled:
+                            self.event_handler.handle_event(event)
+                    else:
+                        self.event_handler.handle_event(event)
 
             # Process AI players
             if state['hand_active'] and state['current_player'] is not None:
@@ -176,6 +261,11 @@ class PygameGUI:
 
             # Render
             self.render(state)
+
+            # Update chat panel
+            if self.chat_panel:
+                self.chat_panel.update()
+                self.chat_panel.render(self.screen)
 
             # Update display
             pygame.display.flip()

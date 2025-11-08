@@ -2,8 +2,8 @@
 pygame>=2.1.2
 numpy>=1.24.0
 
-# Poker engine - install from cloned repo
-# Run: pip install -e ./texasholdem
+# Poker engine
+texasholdem>=0.3.0
 
 # Testing
 pytest>=7.2.0
@@ -12,6 +12,21 @@ pytest-cov>=4.0.0
 # Code quality
 black>=23.0.0
 mypy>=0.991
+
+# LLM Integration
+langchain>=0.1.0
+langchain-community>=0.0.20
+langchain-text-splitters>=0.0.1
+
+# Vector Store
+pinecone>=5.0.0
+
+# Embeddings
+sentence-transformers>=2.3.0
+openai>=1.0.0  # For embeddings
+
+# HTTP Client for Ollama
+requests>=2.31.0
 
 # Optional: Machine Learning (for future ML agents)
 # torch>=2.0.0

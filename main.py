@@ -78,7 +78,8 @@ def main():
 
     # Create and run GUI
     try:
-        gui = PygameGUI(game, agent_manager)
+        # Set enable_chat=True to enable AI poker advisor
+        gui = PygameGUI(game, agent_manager, enable_chat=True)
         gui.run()
     except Exception as e:
         print(f"\nError running game: {e}")
