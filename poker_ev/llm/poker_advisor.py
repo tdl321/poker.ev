@@ -7,7 +7,7 @@ Poker advisor using LangChain agents + DeepSeek API + Pinecone RAG for strategy 
 import logging
 import os
 from pathlib import Path
-from typing import Generator, Optional, Dict, List
+from typing import Generator, Optional, Dict
 from langchain_openai import ChatOpenAI
 from langchain.agents import create_agent
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
@@ -82,12 +82,13 @@ class PokerAdvisor:
     """
     LangChain-based poker advisor with RAG and streaming responses
 
-    Uses ReAct agent with 5 specialized tools:
+    Uses ReAct agent with 6 specialized tools:
     - search_poker_knowledge: Search poker strategy knowledge base
     - get_game_state: Get current game state
     - calculate_pot_odds: Calculate pot odds mathematically
     - estimate_hand_strength: Estimate hand strength
     - analyze_position: Analyze position advantage
+    - get_recent_hands: Get recent hand history chronologically
     """
 
     # Agent system prompt
@@ -152,39 +153,126 @@ You: "I'd be happy to teach you about pot odds! First, are you familiar with cou
 [If beginner]: "Perfect! Let's start with the basics using a simple analogy..."
 [If knows outs]: "Great! Since you know about outs, let's connect that to pot odds..."
 
-You have access to these tools:
-- search_poker_knowledge: Search poker strategy knowledge base for hand rankings, position strategy, pot odds, opponent profiling
-  * For quick advice: use k=2-3 (default)
-  * For teaching/learning: use k=5-8 to get more comprehensive context
-  * Example: search_poker_knowledge("pot odds beginner tutorial", k=6)
-- get_game_state: Get current game state (cards, position, pot, opponents) - use FIRST when providing situation-specific advice
-- calculate_pot_odds: Calculate pot odds (input: "pot_size,bet_to_call")
-- estimate_hand_strength: Estimate hand strength (input: hand description like "pocket aces")
-- analyze_position: Analyze position advantage (input: position name like "button" or "big blind")
-- search_past_decisions: Search YOUR past decisions in similar situations - shows what actions you took before and their outcomes
+You have access to these 8 specialized tools:
 
-When to use tools:
-- If user asks about their current hand → use get_game_state first
-- If user asks about general poker concepts → use search_poker_knowledge
-- If user asks "should I call?" → use calculate_pot_odds AND search_past_decisions to see what worked before
-- If user asks about a specific hand type → use estimate_hand_strength
-- If user asks about position → use analyze_position
-- If user wants to know what they did in similar spots → use search_past_decisions
-- **In tutor mode**: Use search_poker_knowledge with k=5-8 to retrieve comprehensive learning materials
+**1. search_poker_knowledge** - RAG knowledge base access
+  * For quick advice: use k=2-3 (default)
+  * For teaching/learning: use k=5-8 to get comprehensive context
+  * Example: search_poker_knowledge("pot odds beginner tutorial", k=6)
+  * Use when: Explaining concepts, teaching strategy, answering "what is X?" questions
+
+**2. get_game_state** - Current hand context
+  * Returns: Current cards, position, pot, opponents, board
+  * Use FIRST when providing situation-specific advice
+  * Critical: ONLY use for CURRENT hand, not past hands
+
+**3. calculate_pot_odds** - Pot odds and EV calculator
+  * Input: "pot_size,bet_to_call" for basic pot odds
+  * Input: "pot_size,bet_to_call,equity" for full EV analysis
+  * Input: "pot_size,bet_to_call,equity,teach" for teaching mode with step-by-step explanations
+  * Examples:
+    - "150,30" → Pot odds only
+    - "150,30,35" → Pot odds + EV with 35% equity
+    - "150,30,35,teach" → Full teaching mode with detailed probability breakdown
+  * Use for: Call/fold decisions, profitability analysis, teaching pot odds/EV
+
+**4. calculate_outs** - Outs and equity calculator (NEW - ESSENTIAL for probability teaching)
+  * Input: Draw description like "flush draw on flop", "gutshot straight draw", "9 outs"
+  * Returns:
+    - Number of outs
+    - Equity % using Rule of 2 and 4
+    - Exact probability calculations
+    - Teaching explanations of the math
+  * Use for: Teaching probability, calculating equity for draws, explaining Rule of 2 and 4
+  * Example: "flush draw on flop" → "9 outs, 36% equity, detailed probability breakdown"
+
+**5. count_combinations** - Combinatorics calculator (NEW - for probability teaching)
+  * Input: Hand descriptions like "AA", "AKs", "pocket pairs", "suited connectors"
+  * Returns:
+    - Number of combinations
+    - Probability of being dealt
+    - Teaching explanation of combinatorics
+  * Use for: Teaching probability, range analysis, explaining why hands are rare/common
+  * Example: "AA" → "6 combinations, 0.45% chance, you'll see AA once every 221 hands"
+
+**6. estimate_hand_strength** - Hand evaluation with equity
+  * Input: Hand description like "pocket aces", "AKs", "suited connectors"
+  * Returns:
+    - Hand strength tier (premium/strong/medium/weak)
+    - Equity vs random hand
+    - Combinations and probability
+    - Strategic recommendations
+    - Teaching explanation of why hand is strong/weak
+  * Use for: Teaching hand selection, evaluating preflop hands, explaining equity
+
+**7. analyze_position** - Position strategy
+  * Input: Position name like "button", "big blind", "early position"
+  * Returns: Position strength, advantages/disadvantages, strategy recommendations
+  * Use for: Teaching position concepts, positional strategy
+
+**8. get_recent_hands** - Hand history (chronological)
+  * Returns: Recent hands sorted by TIME with cards, outcome, profit/loss
+  * Use when: "What happened in my last hand?", "Show recent hands", "How have I been doing?"
+  * Critical: DO NOT use for current hand analysis - use get_game_state() instead
+
+Tool Usage Patterns:
+
+**For Current Hand Advice:**
+1. get_game_state() → See current situation
+2. calculate_outs() → Determine equity from draws
+3. calculate_pot_odds(pot,bet,equity) → Compare equity vs required
+4. Recommend action (fold/call/raise)
+
+**For Teaching Probability:**
+1. search_poker_knowledge(topic, k=6) → Get comprehensive tutorial
+2. calculate_outs() → Show example calculations
+3. count_combinations() → Explain combinatorics
+4. calculate_pot_odds(pot,bet,equity,teach) → Teaching mode for EV
+5. estimate_hand_strength() → Explain hand equity
+
+**For Quick Answers:**
+- Current hand: get_game_state()
+- Last hand: get_recent_hands()
+- General concepts: search_poker_knowledge(k=2)
+- Should I call?: calculate_pot_odds(pot,bet,equity)
+- Is this profitable?: calculate_pot_odds with equity (+EV or -EV)
+- Hand strength: estimate_hand_strength()
+- Position strategy: analyze_position()
+
+**Teaching Mode Triggers:**
+- User asks to "teach me", "I want to learn", "explain", "I don't understand"
+- Use k=5-8 in search_poker_knowledge for comprehensive context
+- Use "teach" parameter in calculate_pot_odds for step-by-step explanations
+- Always explain probability concepts using calculate_outs and count_combinations
+
+Expected Value (EV) Guidance:
+- Always try to include equity when using calculate_pot_odds for better analysis
+- +EV = Profitable call (equity > required equity)
+- -EV = Unprofitable call (equity < required equity)
+- 0 EV = Break-even call (equity = required equity)
 
 CRITICAL RULE FOR CURRENT HAND ANALYSIS:
 When analyzing the user's CURRENT hand:
 1. ALWAYS call get_game_state() FIRST to see the current cards, board, and pot
-2. The cards from get_game_state() are the ONLY cards you should use for advice
-3. DO NOT use cards from search_past_decisions() - those are from PREVIOUS hands, not the current one
-4. search_past_decisions() is ONLY for learning from history, NOT for determining current cards
-5. If get_game_state() returns "No active game state available", tell the user there's no active hand
+2. The cards from get_game_state() are the ONLY cards you should use for advice about the CURRENT situation
+3. DO NOT use cards from get_recent_hands() for current hand advice
+   - get_recent_hands() shows PAST hands, not current cards
+4. If get_game_state() returns "No active game state available", tell the user there's no active hand
 
-Example:
+CORRECT Tool Usage for Current Hand:
 - User: "What's the best move for my current hand?"
-- Step 1: Call get_game_state() → "You have A♣ K♦ on K♠ 4♣ 5♣ flop"
-- Step 2: Analyze THESE cards (A♣ K♦), NOT any cards from past hands
-- Step 3: Provide advice based on the CURRENT game state
+  Step 1: Call get_game_state() → "You have A♣ K♦ on K♠ 4♣ 5♣ flop"
+  Step 2: Analyze these CURRENT cards (A♣ K♦) and provide advice
+  Step 3: Use calculate_pot_odds if needed for the math
+
+WRONG Tool Usage:
+- User: "What's the best move for my current hand?"
+  Step 1: Call get_recent_hands() and use those cards → ❌ WRONG! Those are PAST hands
+  Step 2: Give advice based on past hand cards → ❌ WRONG! Must use current cards from get_game_state()
+
+The distinction is simple:
+- get_game_state() = Current hand's cards (what you HAVE now)
+- get_recent_hands() = Past hands' cards (what you HAD before, for reference)
 """
 
     def __init__(
@@ -194,6 +282,7 @@ Example:
         vector_store: Optional[object] = None,
         game_context_provider: Optional[GameContextProvider] = None,
         decision_tracker: Optional[object] = None,
+        hand_history: Optional[object] = None,
         temperature: float = 0.7,
         index_name: str = "poker-knowledge"
     ):
@@ -207,6 +296,7 @@ Example:
             vector_store: VectorStoreWrapper for RAG (creates default if None)
             game_context_provider: GameContextProvider for current game state
             decision_tracker: DecisionTracker for decision history (optional)
+            hand_history: HandHistory for searching past hands (optional)
             temperature: LLM temperature (0.0-1.0)
             index_name: Pinecone index name
         """
@@ -282,6 +372,9 @@ Example:
         # Decision tracker
         self.decision_tracker = decision_tracker
 
+        # Hand history
+        self.hand_history = hand_history
+
         # Load knowledge base if store is empty
         self._maybe_load_knowledge_base()
 
@@ -290,7 +383,8 @@ Example:
         poker_tools = PokerTools(
             pinecone_store=self.vector_store,
             game_context_provider=self.game_context_provider,
-            decision_tracker=self.decision_tracker
+            decision_tracker=self.decision_tracker,
+            hand_history=self.hand_history
         )
         self.tools = poker_tools.create_tools()
         logger.info(f"Created {len(self.tools)} tools: {[t.name for t in self.tools]}")
@@ -353,69 +447,15 @@ Example:
         except Exception as e:
             logger.error(f"Error loading knowledge base: {e}")
 
-    def get_advice(
-        self,
-        user_query: str,
-        game_state: Optional[Dict] = None,
-        use_rag: bool = True
-    ) -> str:
-        """
-        Get poker advice (non-streaming)
-
-        Args:
-            user_query: User's question
-            game_state: Current game state dict (unused - agent uses get_game_state tool)
-            use_rag: Whether to use RAG (unused - agent uses search_poker_knowledge tool)
-
-        Returns:
-            Advice text
-        """
-        try:
-            # Run agent with user query (LangChain v1.0 API)
-            result = self.agent.invoke({
-                "messages": [{"role": "user", "content": user_query}]
-            })
-
-            # Extract final text answer from agent messages
-            if isinstance(result, dict) and "messages" in result:
-                # Iterate through messages from end to find last text response
-                for message in reversed(result["messages"]):
-                    # Check for content attribute (AIMessage)
-                    if hasattr(message, "content") and message.content:
-                        # Skip tool call JSON, get actual text response
-                        if isinstance(message.content, str) and not message.content.strip().startswith("{"):
-                            return message.content
-                    # Check for dict format
-                    elif isinstance(message, dict) and "content" in message:
-                        content = message.get("content", "")
-                        if content and not content.strip().startswith("{"):
-                            return content
-
-                # If no text found, return last message
-                last_message = result["messages"][-1]
-                if hasattr(last_message, "content"):
-                    return last_message.content
-                elif isinstance(last_message, dict):
-                    return last_message.get("content", str(result))
-
-            return str(result)
-        except Exception as e:
-            logger.error(f"Error getting advice: {e}")
-            return f"Sorry, I encountered an error: {str(e)}"
-
     def get_advice_stream(
         self,
-        user_query: str,
-        game_state: Optional[Dict] = None,
-        use_rag: bool = True
+        user_query: str
     ) -> Generator[str, None, None]:
         """
         Get poker advice with streaming response
 
         Args:
             user_query: User's question
-            game_state: Current game state dict (unused - agent uses get_game_state tool)
-            use_rag: Whether to use RAG (unused - agent uses search_poker_knowledge tool)
 
         Yields:
             Text chunks for smooth streaming display
@@ -454,79 +494,3 @@ Example:
             error_msg = f"Sorry, I encountered an error: {str(e)}"
             for char in error_msg:
                 yield char
-
-    def quick_tip(self, situation: str) -> str:
-        """
-        Get a quick tip for a specific situation
-
-        Args:
-            situation: Situation description (e.g., "pocket jacks preflop")
-
-        Returns:
-            Quick tip text
-        """
-        try:
-            # Use agent to get quick tip
-            query = f"Give a quick tip for: {situation}"
-            result = self.agent.invoke({
-                "messages": [{"role": "user", "content": query}]
-            })
-
-            # Extract text from response
-            if isinstance(result, dict) and "messages" in result:
-                last_message = result["messages"][-1]
-                if hasattr(last_message, "content"):
-                    return last_message.content
-                elif isinstance(last_message, dict):
-                    return last_message.get("content", "")
-
-            return str(result)
-        except Exception as e:
-            logger.error(f"Error getting quick tip: {e}")
-            return f"Tip not available: {str(e)}"
-
-
-# Example usage
-if __name__ == "__main__":
-    import sys
-    import os
-    from dotenv import load_dotenv
-
-    # Load .env file for standalone testing
-    load_dotenv()
-
-    logging.basicConfig(level=logging.INFO)
-
-    print("🃏 Initializing LangChain Poker Advisor...")
-    print("=" * 60)
-    advisor = PokerAdvisor()
-
-    # Test non-streaming
-    print("\n" + "=" * 60)
-    print("TEST 1: Non-streaming advice (agent decides which tools to use)")
-    print("=" * 60)
-    query = "Should I call with pocket jacks?"
-    print(f"\nQ: {query}")
-    print(f"A: {advisor.get_advice(query)}")
-
-    # Test streaming
-    print("\n" + "=" * 60)
-    print("TEST 2: Streaming advice")
-    print("=" * 60)
-    query = "What are pot odds?"
-    print(f"\nQ: {query}")
-    print("A: ", end='', flush=True)
-
-    for chunk in advisor.get_advice_stream(query):
-        print(chunk, end='', flush=True)
-    print()
-
-    # Test quick tip
-    print("\n" + "=" * 60)
-    print("TEST 3: Quick tip")
-    print("=" * 60)
-    print(advisor.quick_tip("playing from button position"))
-
-    print("\n" + "=" * 60)
-    print("✅ All tests complete!")
-    print("=" * 60)
