@@ -115,12 +115,9 @@ class ChatPanel:
         self._add_system_message(
             "POKER ADVISOR\n\n"
             "I can help you with:\n"
-            "- Hand analysis & equity\n"
-            "- Pot odds & EV calculation\n"
-            "- Outs & probability\n"
-            "- Position strategy\n"
-            "- Hand combinations\n"
-            "- Historical hand review\n\n"
+            "- Hand analysis\n"
+            "- Pot odds calculation\n"
+            "- Position strategy\n\n"
             "Ask me anything!"
         )
 
