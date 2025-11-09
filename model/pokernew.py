@@ -589,7 +589,7 @@ class PokerEnv:
 
         # Update money
         for i in range(self.num_players):
-            self.money[i] = total_won[i]
+            self.money[i] += total_won[i]  # Add pot winnings to remaining chips
             money_change = [total_won[i] - self.bets[i] for i in range(len(total_won))]
             # print(f"{money_change}, {self.net}")
             self.net[i] += money_change[i]
@@ -603,7 +603,7 @@ class PokerEnv:
             print("\nFinal Results:")
         for i in range(self.num_players):
             print(f"Player {i+1}: Result: {self.net[i] + self.money[i] - 1000}, Net: {self.net[i]}, Money = {self.money[i]} ({money_change[i]})")
-            self.money[i] = self.endowment
+            # Don't reset money after each hand - preserve chips for next hand
 
 # def main(num_players):
 def play():
