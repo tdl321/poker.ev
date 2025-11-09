@@ -1035,20 +1035,29 @@ Please specify position:
 
         @tool
         def get_recent_hands(limit: str = "3") -> str:
-            """Get the most recent completed poker hands sorted by time (not similarity).
+            """Get PAST/HISTORICAL poker hands (NOT the current active hand).
 
-            IMPORTANT: This shows hands in chronological order (newest first), NOT by similarity!
-            - Use this to see what happened in the last few hands
-            - Shows the progression of recent play
-            - Useful for understanding current session context
+            ⚠️ CRITICAL: This tool is for COMPLETED hands from history ONLY!
+            ❌ DO NOT use for questions about the CURRENT/ACTIVE hand
+            ❌ DO NOT use when user asks "what is my current hand" or "my hand"
+            ✅ The current hand is ALWAYS in the [CURRENT GAME STATE] block (auto-provided)
 
-            Input: limit - Number of recent hands to retrieve (default: 3, max: 10)
-            Returns: Most recent hands with their cards, board, outcome, and profit/loss
+            This tool shows PAST hands in chronological order (newest first):
+            - Completed hands from previous rounds
+            - Historical performance data
+            - Session progression over time
 
-            Use this when you want to know:
-            - "What happened in my last hand?"
-            - "Show me my recent hands"
-            - "How have I been doing lately?"
+            Input: limit - Number of PAST hands to retrieve (default: 3, max: 10)
+            Returns: HISTORICAL hands with their cards, board, outcome, and profit/loss
+
+            Use ONLY for these types of questions:
+            - "What happened in my LAST hand?" (the hand that just finished)
+            - "Show me my RECENT hands" (past completed hands)
+            - "How have I been doing LATELY?" (historical performance)
+
+            DO NOT use for:
+            - "What is my CURRENT hand?" → Read [CURRENT GAME STATE] block instead!
+            - "Should I call THIS hand?" → Read [CURRENT GAME STATE] block instead!
             """
             if not hand_history:
                 return "Hand history not available. This feature requires hand history tracking to be enabled."
