@@ -56,11 +56,11 @@ class PygameGUI:
 
         self.game = game
         self.agent_manager = agent_manager
-        self.window_size = window_size
         self.enable_chat = enable_chat
 
-        # Create window
-        self.screen = pygame.display.set_mode(window_size)
+        # Create fullscreen window
+        self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+        self.window_size = self.screen.get_size()  # Get actual fullscreen resolution
         pygame.display.set_caption("Poker.ev - AI Poker Application + Advisor")
 
         # Load assets
