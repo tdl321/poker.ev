@@ -447,8 +447,11 @@ class PygameGUI:
                 if event.type == pygame.QUIT:
                     running = False
                 else:
-                    # Handle chat events first (if chat is visible, it takes priority)
-                    if self.chat_panel and self.chat_visible:
+                    # If raise UI is showing, game events take priority
+                    if self.showing_raise_input:
+                        self.event_handler.handle_event(event)
+                    # Otherwise, handle chat events first (if chat is visible)
+                    elif self.chat_panel and self.chat_visible:
                         handled = self.chat_panel.handle_event(event)
                         if not handled:
                             self.event_handler.handle_event(event)
