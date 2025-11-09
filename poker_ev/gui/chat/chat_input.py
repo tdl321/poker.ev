@@ -42,6 +42,10 @@ class ChatInput:
         self.placeholder = placeholder
         self.on_submit = on_submit
 
+        # Terminal-style prompt
+        self.prompt = "> "
+        self.prompt_width = self.font.size(self.prompt)[0]
+
         # State
         self.text = ""
         self.is_active = False
@@ -149,8 +153,8 @@ class ChatInput:
 
     def _update_cursor_from_mouse(self, mouse_pos):
         """Update cursor position from mouse click"""
-        # Calculate which character was clicked
-        relative_x = mouse_pos[0] - self.rect.left - 10 + self.scroll_offset
+        # Calculate which character was clicked (accounting for prompt)
+        relative_x = mouse_pos[0] - self.rect.left - 10 - self.prompt_width + self.scroll_offset
 
         # Find closest character position
         for i in range(len(self.text) + 1):
@@ -173,8 +177,8 @@ class ChatInput:
         text_before_cursor = self.text[:self.cursor_pos]
         cursor_x = self.font.size(text_before_cursor)[0]
 
-        # Available width for text (minus padding)
-        available_width = self.rect.width - 20
+        # Available width for text (minus padding and prompt)
+        available_width = self.rect.width - 20 - self.prompt_width
 
         # Scroll if cursor is outside visible area
         if cursor_x - self.scroll_offset < 10:
@@ -206,7 +210,7 @@ class ChatInput:
 
     def render(self, screen: pygame.Surface):
         """
-        Render the input field with System 6-style inset effect
+        Render the input field with terminal-style prompt
 
         Args:
             screen: Pygame surface to draw on
@@ -215,8 +219,15 @@ class ChatInput:
         pygame.draw.rect(screen, self.BG_COLOR, self.rect)
         pygame.draw.rect(screen, self.BORDER_COLOR, self.rect, 1)
 
-        # Create clipping rect for text
-        text_area = self.rect.inflate(-20, -10)
+        # Draw prompt character
+        prompt_surface = self.font.render(self.prompt, True, self.TEXT_COLOR)
+        prompt_x = self.rect.left + 10
+        prompt_y = self.rect.centery - prompt_surface.get_height() // 2
+        screen.blit(prompt_surface, (prompt_x, prompt_y))
+
+        # Create clipping rect for text (after prompt)
+        text_area = self.rect.inflate(-20 - self.prompt_width, -10)
+        text_start_x = self.rect.left + 10 + self.prompt_width
 
         # Draw text or placeholder
         if self.text:
@@ -225,7 +236,7 @@ class ChatInput:
             # Apply scroll offset
             screen.blit(
                 text_surface,
-                (self.rect.left + 10, self.rect.centery - text_surface.get_height() // 2),
+                (text_start_x, self.rect.centery - text_surface.get_height() // 2),
                 area=pygame.Rect(
                     self.scroll_offset,
                     0,
@@ -237,33 +248,47 @@ class ChatInput:
             # Draw cursor if active
             if self.is_active and self.cursor_visible:
                 self._draw_cursor(screen)
-        elif not self.is_active:
-            # Show placeholder
-            placeholder_surface = self.font.render(self.placeholder, True, self.PLACEHOLDER_COLOR)
-            screen.blit(
-                placeholder_surface,
-                (self.rect.left + 10, self.rect.centery - placeholder_surface.get_height() // 2)
-            )
+        else:
+            # Show placeholder if not active
+            if not self.is_active:
+                placeholder_surface = self.font.render(self.placeholder, True, self.PLACEHOLDER_COLOR)
+                screen.blit(
+                    placeholder_surface,
+                    (text_start_x, self.rect.centery - placeholder_surface.get_height() // 2)
+                )
+            elif self.is_active and self.cursor_visible:
+                # Show cursor at start position when empty and active
+                self._draw_cursor(screen)
 
     def _draw_cursor(self, screen: pygame.Surface):
-        """Draw blinking cursor"""
+        """Draw terminal-style block cursor"""
         # Calculate cursor position
         text_before_cursor = self.text[:self.cursor_pos]
         cursor_x = self.font.size(text_before_cursor)[0] - self.scroll_offset
 
-        # Cursor position on screen
-        cursor_screen_x = self.rect.left + 10 + cursor_x
+        # Get character at cursor position (or space if at end)
+        char_at_cursor = self.text[self.cursor_pos] if self.cursor_pos < len(self.text) else " "
+        char_width = self.font.size(char_at_cursor)[0]
+
+        # Cursor position on screen (after prompt)
+        cursor_screen_x = self.rect.left + 10 + self.prompt_width + cursor_x
         cursor_y_top = self.rect.top + 8
         cursor_y_bottom = self.rect.bottom - 8
+        cursor_height = cursor_y_bottom - cursor_y_top
 
-        # Draw cursor line
-        pygame.draw.line(
-            screen,
-            self.CURSOR_COLOR,
-            (cursor_screen_x, cursor_y_top),
-            (cursor_screen_x, cursor_y_bottom),
-            2
+        # Draw block cursor (filled rectangle)
+        cursor_rect = pygame.Rect(
+            cursor_screen_x,
+            cursor_y_top,
+            char_width,
+            cursor_height
         )
+        pygame.draw.rect(screen, self.CURSOR_COLOR, cursor_rect)
+
+        # Draw the character in inverted color (black on green)
+        if self.cursor_pos < len(self.text):
+            char_surface = self.font.render(char_at_cursor, True, self.BG_COLOR)
+            screen.blit(char_surface, (cursor_screen_x, self.rect.centery - char_surface.get_height() // 2))
 
 
 # Example usage
