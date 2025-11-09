@@ -13,13 +13,22 @@ class ChatInput:
     Retro-styled text input field for chat
     """
 
-    # Colors - retro theme
-    BG_COLOR = (30, 30, 30)
-    BORDER_COLOR = (0, 255, 100)  # Retro green
-    BORDER_ACTIVE = (0, 255, 200)  # Brighter when active
-    TEXT_COLOR = (220, 255, 220)
-    PLACEHOLDER_COLOR = (100, 100, 100)
-    CURSOR_COLOR = (0, 255, 100)
+    # Colors - monochrome retro theme (system.css inspired)
+    BG_DARK = (15, 15, 15)          # Almost black
+    BG_MEDIUM = (26, 26, 26)        # Dark gray
+    BG_PANEL = (35, 35, 35)         # Medium dark
+    ACCENT_PRIMARY = (0, 255, 100)  # Retro green
+    ACCENT_DIM = (0, 180, 70)       # Dimmed green
+    TEXT_PRIMARY = (220, 255, 220)  # Light green tint
+    TEXT_SECONDARY = (100, 100, 100) # Gray
+
+    # Legacy aliases
+    BG_COLOR = BG_MEDIUM
+    BORDER_COLOR = ACCENT_DIM
+    BORDER_ACTIVE = ACCENT_PRIMARY
+    TEXT_COLOR = TEXT_PRIMARY
+    PLACEHOLDER_COLOR = TEXT_SECONDARY
+    CURSOR_COLOR = ACCENT_PRIMARY
 
     def __init__(
         self,
@@ -206,20 +215,23 @@ class ChatInput:
 
     def render(self, screen: pygame.Surface):
         """
-        Render the input field
+        Render the input field with System 6-style inset effect
 
         Args:
             screen: Pygame surface to draw on
         """
-        # Draw background
-        pygame.draw.rect(screen, self.BG_COLOR, self.rect)
-
-        # Draw border (brighter when active)
-        border_color = self.BORDER_ACTIVE if self.is_active else self.BORDER_COLOR
-        pygame.draw.rect(screen, border_color, self.rect, 2)
-
-        # Draw pixel corners (retro style)
-        self._draw_pixel_corners(screen, border_color)
+        if not self.is_active:
+            # Inactive - subtle inset shadow
+            shadow_rect = self.rect.inflate(2, 2)
+            pygame.draw.rect(screen, self.BG_DARK, shadow_rect)
+            pygame.draw.rect(screen, self.BG_COLOR, self.rect)
+            pygame.draw.rect(screen, self.BORDER_COLOR, self.rect, 1)
+        else:
+            # Active - bright border with glow effect
+            glow_rect = self.rect.inflate(4, 4)
+            pygame.draw.rect(screen, self.ACCENT_DIM, glow_rect)
+            pygame.draw.rect(screen, self.BG_COLOR, self.rect)
+            pygame.draw.rect(screen, self.BORDER_ACTIVE, self.rect, 2)
 
         # Create clipping rect for text
         text_area = self.rect.inflate(-20, -10)
@@ -243,7 +255,6 @@ class ChatInput:
             # Draw cursor if active
             if self.is_active and self.cursor_visible:
                 self._draw_cursor(screen)
-
         elif not self.is_active:
             # Show placeholder
             placeholder_surface = self.font.render(self.placeholder, True, self.PLACEHOLDER_COLOR)
@@ -251,19 +262,6 @@ class ChatInput:
                 placeholder_surface,
                 (self.rect.left + 10, self.rect.centery - placeholder_surface.get_height() // 2)
             )
-
-    def _draw_pixel_corners(self, screen: pygame.Surface, color):
-        """Draw retro pixel-art corners"""
-        corner_size = 4
-        corners = [
-            (self.rect.left, self.rect.top),
-            (self.rect.right - corner_size, self.rect.top),
-            (self.rect.left, self.rect.bottom - corner_size),
-            (self.rect.right - corner_size, self.rect.bottom - corner_size)
-        ]
-
-        for x, y in corners:
-            pygame.draw.rect(screen, color, pygame.Rect(x, y, corner_size, corner_size))
 
     def _draw_cursor(self, screen: pygame.Surface):
         """Draw blinking cursor"""

@@ -13,11 +13,17 @@ class ScrollHandler:
     Handles scrolling for chat messages with retro-styled scrollbar
     """
 
-    # Colors - retro green/cyan theme
-    SCROLLBAR_BG = (20, 40, 30)
-    SCROLLBAR_FG = (0, 255, 100)  # Retro green
-    SCROLLBAR_HOVER = (0, 200, 80)
-    BORDER_COLOR = (0, 255, 100)
+    # Colors - monochrome retro theme (system.css inspired)
+    BG_DARK = (15, 15, 15)          # Almost black
+    BG_PANEL = (35, 35, 35)         # Medium dark
+    ACCENT_PRIMARY = (0, 255, 100)  # Retro green
+    ACCENT_DIM = (0, 180, 70)       # Dimmed green
+
+    # Legacy aliases
+    SCROLLBAR_BG = BG_DARK
+    SCROLLBAR_FG = ACCENT_DIM
+    SCROLLBAR_HOVER = ACCENT_PRIMARY
+    BORDER_COLOR = ACCENT_DIM
 
     def __init__(self, scroll_area_rect: pygame.Rect, scrollbar_width: int = 12):
         """
@@ -185,7 +191,7 @@ class ScrollHandler:
 
     def render(self, screen: pygame.Surface, mouse_pos: Tuple[int, int]):
         """
-        Render the scrollbar
+        Render System 6-style scrollbar
 
         Args:
             screen: Pygame surface to draw on
@@ -195,7 +201,7 @@ class ScrollHandler:
         if self.content_height <= self.scroll_area.height:
             return
 
-        # Draw scrollbar background
+        # Scrollbar track (simple outline)
         pygame.draw.rect(screen, self.SCROLLBAR_BG, self.scrollbar_rect)
         pygame.draw.rect(screen, self.BORDER_COLOR, self.scrollbar_rect, 1)
 
@@ -206,19 +212,23 @@ class ScrollHandler:
             is_hover = handle_rect.collidepoint(mouse_pos) or self.is_dragging
             handle_color = self.SCROLLBAR_HOVER if is_hover else self.SCROLLBAR_FG
 
-            # Draw handle with pixel-art style
-            pygame.draw.rect(screen, handle_color, handle_rect)
+            # Fill handle background
+            pygame.draw.rect(screen, self.BG_PANEL, handle_rect)
 
-            # Draw pixel border
-            pygame.draw.rect(screen, self.BORDER_COLOR, handle_rect, 2)
+            # Draw handle border
+            pygame.draw.rect(screen, handle_color, handle_rect, 2)
 
-            # Draw grip lines (retro style)
+            # Draw horizontal grip lines (System 6 style)
+            num_lines = 4
+            spacing = 3
             center_y = handle_rect.centery
-            for i in range(-1, 2):
-                y = center_y + i * 4
+            start_y = center_y - (num_lines // 2) * spacing
+
+            for i in range(num_lines):
+                y = start_y + i * spacing
                 pygame.draw.line(
                     screen,
-                    self.SCROLLBAR_BG,
+                    handle_color,
                     (handle_rect.left + 3, y),
                     (handle_rect.right - 3, y),
                     1

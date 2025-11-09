@@ -21,11 +21,19 @@ class ChatPanel:
     Combines scrolling, message rendering, and input handling.
     """
 
-    # Colors - retro theme
-    PANEL_BG = (26, 26, 26)  # Dark background
-    HEADER_BG = (20, 40, 30)  # Dark green
-    HEADER_TEXT = (0, 255, 100)  # Bright green
-    BORDER_COLOR = (0, 255, 100)
+    # Colors - monochrome retro theme (system.css inspired)
+    BG_DARK = (15, 15, 15)          # Almost black
+    BG_MEDIUM = (26, 26, 26)        # Dark gray
+    BG_PANEL = (35, 35, 35)         # Medium dark
+    ACCENT_PRIMARY = (0, 255, 100)  # Retro green (only bright color)
+    ACCENT_DIM = (0, 180, 70)       # Dimmed green
+    TEXT_PRIMARY = (220, 255, 220)  # Light green tint
+
+    # Legacy aliases for compatibility
+    PANEL_BG = BG_MEDIUM
+    HEADER_BG = BG_PANEL
+    HEADER_TEXT = ACCENT_PRIMARY
+    BORDER_COLOR = ACCENT_PRIMARY
 
     def __init__(
         self,
@@ -259,32 +267,55 @@ class ChatPanel:
         )
 
     def _render_header(self, screen: pygame.Surface):
-        """Render the chat panel header"""
+        """Render System 6-style title bar header"""
         # Header background
         pygame.draw.rect(screen, self.HEADER_BG, self.header_rect)
 
-        # Header border
+        # Top border highlight
         pygame.draw.line(
             screen,
-            self.BORDER_COLOR,
-            (self.header_rect.left, self.header_rect.bottom),
-            (self.header_rect.right, self.header_rect.bottom),
+            self.ACCENT_PRIMARY,
+            (self.header_rect.left, self.header_rect.top),
+            (self.header_rect.right, self.header_rect.top),
             2
         )
 
-        # Title
+        # Title (centered, single line)
         title = "POKER ADVISOR"
         title_surface = self.font_large.render(title, True, self.HEADER_TEXT)
         title_x = self.header_rect.centerx - title_surface.get_width() // 2
-        title_y = self.header_rect.top + 10
+        title_y = self.header_rect.centery - title_surface.get_height() // 2
         screen.blit(title_surface, (title_x, title_y))
 
-        # Subtitle
-        subtitle = "AI-Powered Strategy Guide"
-        subtitle_surface = self.font_small.render(subtitle, True, (150, 200, 150))
-        subtitle_x = self.header_rect.centerx - subtitle_surface.get_width() // 2
-        subtitle_y = title_y + title_surface.get_height() + 5
-        screen.blit(subtitle_surface, (subtitle_x, subtitle_y))
+        # Drag handle lines (retro Mac style - above title)
+        center_x = self.header_rect.centerx
+        center_y = self.header_rect.centery
+        handle_width = 60
+        for i in range(3):
+            y = center_y - title_surface.get_height() // 2 - 8 - i * 3
+            pygame.draw.line(
+                screen,
+                self.ACCENT_DIM,
+                (center_x - handle_width // 2, y),
+                (center_x + handle_width // 2, y),
+                1
+            )
+
+        # Bottom border with double line (classic separator)
+        pygame.draw.line(
+            screen,
+            self.ACCENT_PRIMARY,
+            (self.header_rect.left, self.header_rect.bottom - 2),
+            (self.header_rect.right, self.header_rect.bottom - 2),
+            1
+        )
+        pygame.draw.line(
+            screen,
+            self.ACCENT_DIM,
+            (self.header_rect.left, self.header_rect.bottom - 1),
+            (self.header_rect.right, self.header_rect.bottom - 1),
+            1
+        )
 
     def _render_messages(self, screen: pygame.Surface):
         """Render all messages with scrolling"""

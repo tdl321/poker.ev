@@ -14,20 +14,20 @@ class MessageRenderer:
     Renders chat messages with retro 8-bit styling
     """
 
-    # Colors - retro theme
-    USER_BG = (20, 60, 20)  # Dark green
-    USER_BORDER = (0, 255, 100)  # Bright green
-    USER_TEXT = (220, 255, 220)  # Light green
+    # Colors - monochrome retro theme (system.css inspired)
+    BG_DARK = (15, 15, 15)          # Almost black
+    BG_MEDIUM = (26, 26, 26)        # Dark gray
+    BG_PANEL = (35, 35, 35)         # Medium dark
+    ACCENT_PRIMARY = (0, 255, 100)  # Retro green (only bright color)
+    ACCENT_DIM = (0, 180, 70)       # Dimmed green
+    TEXT_PRIMARY = (220, 255, 220)  # Light green tint
+    TEXT_SECONDARY = (150, 150, 150) # Gray
 
-    AI_BG = (20, 40, 60)  # Dark blue
-    AI_BORDER = (0, 200, 255)  # Cyan
-    AI_TEXT = (200, 240, 255)  # Light cyan
-
-    SYSTEM_BG = (60, 50, 20)  # Dark gold
-    SYSTEM_BORDER = (255, 215, 0)  # Gold
-    SYSTEM_TEXT = (255, 240, 200)  # Light gold
-
-    TIMESTAMP_COLOR = (150, 150, 150)  # Gray
+    # Unified colors - distinguish by border style, not color
+    MESSAGE_BG = BG_PANEL
+    MESSAGE_BORDER = ACCENT_PRIMARY
+    MESSAGE_TEXT = TEXT_PRIMARY
+    TIMESTAMP_COLOR = TEXT_SECONDARY
 
     def __init__(self, font_small, font_medium, max_width: int = 350):
         """
@@ -100,21 +100,15 @@ class MessageRenderer:
         content = message.get('content', '')
         timestamp = message.get('timestamp', '')
 
-        # Get colors based on role
+        # Unified colors - role determines alignment and border style only
+        bg_color = self.MESSAGE_BG
+        text_color = self.MESSAGE_TEXT
+
         if role == 'user':
-            bg_color = self.USER_BG
-            border_color = self.USER_BORDER
-            text_color = self.USER_TEXT
             align_right = True
         elif role == 'assistant':
-            bg_color = self.AI_BG
-            border_color = self.AI_BORDER
-            text_color = self.AI_TEXT
             align_right = False
         else:  # system
-            bg_color = self.SYSTEM_BG
-            border_color = self.SYSTEM_BORDER
-            text_color = self.SYSTEM_TEXT
             align_right = False
 
         # Wrap text
@@ -144,8 +138,8 @@ class MessageRenderer:
         # Draw bubble background
         pygame.draw.rect(screen, bg_color, bubble_rect)
 
-        # Draw pixel-art border (retro style)
-        self._draw_pixel_border(screen, bubble_rect, border_color)
+        # Draw border based on role (system.css style)
+        self._draw_retro_border(screen, bubble_rect, role)
 
         # Draw content
         text_y = y + self.padding
@@ -168,33 +162,65 @@ class MessageRenderer:
 
         return bubble_height + 10  # Add spacing after message
 
-    def _draw_pixel_border(self, screen: pygame.Surface, rect: pygame.Rect, color: Tuple[int, int, int]):
+    def _draw_retro_border(self, screen: pygame.Surface, rect: pygame.Rect, role: str):
         """
-        Draw retro pixel-art style border
+        Draw System 6-style borders based on role
 
         Args:
             screen: Surface to draw on
             rect: Rectangle to border
-            color: Border color
+            role: Message role (user, assistant, system)
         """
-        # Outer border
-        pygame.draw.rect(screen, color, rect, 2)
+        if role == 'user':
+            # Double border (like active window)
+            pygame.draw.rect(screen, self.ACCENT_PRIMARY, rect, 2)
+            inner_rect = rect.inflate(-6, -6)
+            pygame.draw.rect(screen, self.ACCENT_DIM, inner_rect, 1)
+        elif role == 'assistant':
+            # Single border
+            pygame.draw.rect(screen, self.ACCENT_PRIMARY, rect, 1)
+        else:  # system
+            # Dashed border pattern
+            self._draw_dashed_border(screen, rect)
 
-        # Corner pixels (retro style)
-        corner_size = 3
-        corners = [
-            (rect.left, rect.top),  # Top-left
-            (rect.right - corner_size, rect.top),  # Top-right
-            (rect.left, rect.bottom - corner_size),  # Bottom-left
-            (rect.right - corner_size, rect.bottom - corner_size)  # Bottom-right
-        ]
+    def _draw_dashed_border(self, screen: pygame.Surface, rect: pygame.Rect):
+        """
+        Draw retro dashed border for system messages
 
-        for corner_x, corner_y in corners:
-            pygame.draw.rect(
-                screen,
-                color,
-                pygame.Rect(corner_x, corner_y, corner_size, corner_size)
-            )
+        Args:
+            screen: Surface to draw on
+            rect: Rectangle to border
+        """
+        dash_length = 8
+        gap_length = 4
+
+        # Draw top edge
+        x = rect.left
+        while x < rect.right:
+            end_x = min(x + dash_length, rect.right)
+            pygame.draw.line(screen, self.ACCENT_PRIMARY, (x, rect.top), (end_x, rect.top), 1)
+            x += dash_length + gap_length
+
+        # Draw bottom edge
+        x = rect.left
+        while x < rect.right:
+            end_x = min(x + dash_length, rect.right)
+            pygame.draw.line(screen, self.ACCENT_PRIMARY, (x, rect.bottom - 1), (end_x, rect.bottom - 1), 1)
+            x += dash_length + gap_length
+
+        # Draw left edge
+        y = rect.top
+        while y < rect.bottom:
+            end_y = min(y + dash_length, rect.bottom)
+            pygame.draw.line(screen, self.ACCENT_PRIMARY, (rect.left, y), (rect.left, end_y), 1)
+            y += dash_length + gap_length
+
+        # Draw right edge
+        y = rect.top
+        while y < rect.bottom:
+            end_y = min(y + dash_length, rect.bottom)
+            pygame.draw.line(screen, self.ACCENT_PRIMARY, (rect.right - 1, y), (rect.right - 1, end_y), 1)
+            y += dash_length + gap_length
 
     def _format_timestamp(self, timestamp_str: str) -> str:
         """
@@ -267,8 +293,8 @@ class MessageRenderer:
         bubble_rect = pygame.Rect(bubble_x, y, bubble_width, bubble_height)
 
         # Draw bubble
-        pygame.draw.rect(screen, self.AI_BG, bubble_rect)
-        self._draw_pixel_border(screen, bubble_rect, self.AI_BORDER)
+        pygame.draw.rect(screen, self.MESSAGE_BG, bubble_rect)
+        self._draw_retro_border(screen, bubble_rect, 'assistant')
 
         # Animated dots
         dot_radius = 3
@@ -286,7 +312,7 @@ class MessageRenderer:
             dot_x = start_x + i * dot_spacing
             dot_y = center_y + bounce_offset
 
-            pygame.draw.circle(screen, self.AI_TEXT, (dot_x, dot_y), dot_radius)
+            pygame.draw.circle(screen, self.MESSAGE_TEXT, (dot_x, dot_y), dot_radius)
 
         return bubble_height + 10
 
