@@ -319,6 +319,43 @@ class PygameGUI:
             self.current_hand_id = None
             self.hand_start_state = None
 
+    def _save_incomplete_hand_on_exit(self):
+        """
+        Save incomplete hand when game exits unexpectedly
+
+        This ensures hands are not lost if the user quits mid-hand
+        """
+        if not self.enable_hand_history or not self.hand_history:
+            return
+
+        if self.current_hand_id is not None:
+            from datetime import datetime
+
+            print(f"\n⚠️  Saving incomplete hand on exit: {self.current_hand_id}")
+
+            # Get current state
+            state = self.game.get_game_state()
+
+            # Prepare and save hand data
+            try:
+                hand_data = self._prepare_hand_data(state)
+                hand_data['outcome'] = 'incomplete'  # Mark as incomplete
+                hand_data['notes'] = f"{hand_data.get('notes', '')} | Incomplete (game exited)"
+
+                success = self.hand_history.save_hand(hand_data)
+                if success:
+                    print(f"✅ Incomplete hand saved")
+
+                # Finalize decisions if tracking enabled
+                if self.enable_decision_tracking and self.decision_tracker:
+                    self.decision_tracker.finalize_hand_decisions(
+                        hand_id=self.current_hand_id,
+                        outcome='incomplete',
+                        profit=0
+                    )
+            except Exception as e:
+                print(f"❌ Error saving incomplete hand: {e}")
+
     def _prepare_hand_data(self, end_state: dict) -> dict:
         """Prepare hand data for Pinecone storage"""
         from datetime import datetime
@@ -570,6 +607,8 @@ class PygameGUI:
             if self.game_over:
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
+                        # Save incomplete hand before exiting
+                        self._save_incomplete_hand_on_exit()
                         running = False
                     elif event.type == pygame.KEYDOWN:
                         if event.key == pygame.K_r:
@@ -597,6 +636,8 @@ class PygameGUI:
             # Handle events
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
+                    # Save incomplete hand before exiting
+                    self._save_incomplete_hand_on_exit()
                     running = False
                 else:
                     # If raise UI is showing, game events take priority
