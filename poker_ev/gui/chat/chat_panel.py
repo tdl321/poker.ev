@@ -325,16 +325,6 @@ class ChatPanel:
         # Draw input
         self.chat_input.render(screen)
 
-        # Draw separator line above input
-        separator_y = self.input_rect.top - 10
-        pygame.draw.line(
-            screen,
-            self.BORDER_COLOR,
-            (self.rect.left, separator_y),
-            (self.rect.right, separator_y),
-            1
-        )
-
     def _render_header(self, screen: pygame.Surface):
         """Render title bar header"""
         # Header background
