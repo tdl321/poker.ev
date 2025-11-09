@@ -271,6 +271,9 @@ class PokerEnv:
 
     def rebuy(self):
         for i in range(self.num_players):
+            # Don't auto-rebuy player 0 (human) - they should be able to go broke
+            if i == 0:
+                continue
             if self.money[i] < 1000:
                 rebuy = 1000 - self.money[i]
                 self.net[i] -= rebuy
@@ -593,7 +596,7 @@ class PokerEnv:
             print("\nFinal Results:")
         for i in range(self.num_players):
             print(f"Player {i+1}: Result: {self.net[i] + self.money[i] - 1000}, Net: {self.net[i]}, Money = {self.money[i]} ({money_change[i]})")
-            self.money[i] = self.endowment
+            # Money now persists across hands - do NOT reset to endowment
 
 # def main(num_players):
 def play():
@@ -649,10 +652,21 @@ def play():
     #     print(f"{env.active_players_str[i]}")
     print(f"Action: {env.actions}")
 
+    # Check if player 0 (human) is out of money
+    if env.money[0] == 0:
+        print("\n" + "="*60)
+        print("GAME OVER - You're out of money!")
+        print("="*60)
+        return True  # Signal game over
+
+    return False  # Continue playing
+
 NUM_PLAYERS = 6
 ENDOWMENT = 1000
 
 env = PokerEnv(NUM_PLAYERS, ENDOWMENT)
-for hand in range(100):  # play 5 hands
+for hand in range(100):  # play up to 100 hands
     print(f"\n=== HAND {hand+1} ===")
-    play()
+    game_over = play()
+    if game_over:
+        break  # Player 0 is out of money
