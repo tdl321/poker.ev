@@ -340,6 +340,20 @@ class ChatPanel:
         # Header background
         pygame.draw.rect(screen, self.HEADER_BG, self.header_rect)
 
+        # Header borders (top, left, right - no bottom)
+        # Top border
+        pygame.draw.line(screen, self.BORDER_COLOR,
+                        (self.header_rect.left, self.header_rect.top),
+                        (self.header_rect.right, self.header_rect.top), 2)
+        # Left border
+        pygame.draw.line(screen, self.BORDER_COLOR,
+                        (self.header_rect.left, self.header_rect.top),
+                        (self.header_rect.left, self.header_rect.bottom), 2)
+        # Right border
+        pygame.draw.line(screen, self.BORDER_COLOR,
+                        (self.header_rect.right - 2, self.header_rect.top),
+                        (self.header_rect.right - 2, self.header_rect.bottom), 2)
+
         # Title (centered, single line)
         title = "POKER ADVISOR"
         title_surface = self.font_large.render(title, True, self.HEADER_TEXT)
