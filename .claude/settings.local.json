@@ -3,7 +3,8 @@
     "allow": [
       "Bash(python test_training.py:*)",
       "Bash(python:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "mcp__sequential-thinking__sequentialthinking"
     ],
     "deny": [],
     "ask": []
