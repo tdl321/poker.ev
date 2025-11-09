@@ -18,7 +18,7 @@ class MessageRenderer:
     BG_DARK = (0, 0, 0)              # Pure black terminal background
     TEXT_AI = (255, 255, 255)        # Pure white for AI responses
     TEXT_USER = (0, 255, 0)          # Neon green for user input
-    TEXT_SYSTEM = (0, 255, 0)        # Neon green for system messages
+    TEXT_SYSTEM = (255, 255, 255)    # Pure white for system messages (AI prompts)
     BORDER_COLOR = (0, 255, 0)       # Neon green borders
     TIMESTAMP_COLOR = (0, 150, 0)    # Dimmed green for timestamps
 
