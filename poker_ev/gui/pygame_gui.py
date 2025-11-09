@@ -80,6 +80,7 @@ class PygameGUI:
         # Chat panel (if enabled)
         self.chat_panel = None
         self.poker_advisor = None
+        self.chat_visible = True  # Chat panel visibility toggle
         if self.enable_chat:
             self._init_chat_panel()
 
@@ -112,7 +113,7 @@ class PygameGUI:
             self.poker_advisor = PokerAdvisor(
                 game_context_provider=game_context
             )
-            self.set_message("Poker Advisor Ready! Press 'H' for help")
+            self.set_message("Poker Advisor Ready! Press Tab to toggle panel")
         except Exception as e:
             self.set_message(f"Chat unavailable: {str(e)}")
             self.enable_chat = False
@@ -232,8 +233,8 @@ class PygameGUI:
                 if event.type == pygame.QUIT:
                     running = False
                 else:
-                    # Handle chat events first (if chat is active, it takes priority)
-                    if self.chat_panel:
+                    # Handle chat events first (if chat is visible, it takes priority)
+                    if self.chat_panel and self.chat_visible:
                         handled = self.chat_panel.handle_event(event)
                         if not handled:
                             self.event_handler.handle_event(event)
@@ -262,8 +263,8 @@ class PygameGUI:
             # Render
             self.render(state)
 
-            # Update chat panel
-            if self.chat_panel:
+            # Update chat panel (only if visible)
+            if self.chat_panel and self.chat_visible:
                 self.chat_panel.update()
                 self.chat_panel.render(self.screen)
 
@@ -563,6 +564,13 @@ class PygameGUI:
         """
         self.message = message
         self.message_timer = duration
+
+    def toggle_chat(self):
+        """Toggle chat panel visibility"""
+        if self.chat_panel:
+            self.chat_visible = not self.chat_visible
+            status = "shown" if self.chat_visible else "hidden"
+            self.set_message(f"Chat panel {status} (Tab to toggle)")
 
     def _action_to_string(self, action: ActionType, amount: int = 0) -> str:
         """Convert action to readable string"""

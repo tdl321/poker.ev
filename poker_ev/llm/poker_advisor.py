@@ -13,7 +13,10 @@ from langchain.agents import create_agent
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_pinecone import PineconeVectorStore
-from langchain_community.embeddings import SentenceTransformerEmbeddings
+try:
+    from langchain_huggingface import HuggingFaceEmbeddings
+except ImportError:
+    from langchain_community.embeddings import HuggingFaceEmbeddings
 from pinecone import Pinecone, ServerlessSpec
 from poker_ev.llm.poker_tools import PokerTools
 from poker_ev.llm.game_context import GameContextProvider
@@ -188,7 +191,7 @@ When to use tools:
                 logger.info(f"Using existing Pinecone index: {index_name}")
 
             # Initialize embeddings
-            embeddings = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
+            embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
             # Create LangChain Pinecone vector store
             pinecone_store = PineconeVectorStore(
@@ -342,23 +345,17 @@ When to use tools:
             Text chunks as they arrive from the agent
         """
         try:
-            # Stream agent execution events (LangChain v1.0 API)
-            for event in self.agent.stream({
-                "messages": [{"role": "user", "content": user_query}]
-            }):
-                # Extract content from streaming events
-                if isinstance(event, dict):
-                    # Check for messages in the event
-                    if "messages" in event:
-                        for message in event["messages"]:
-                            if hasattr(message, "content") and message.content:
-                                # Yield content in word chunks for UI streaming effect
-                                words = message.content.split()
-                                for i, word in enumerate(words):
-                                    if i < len(words) - 1:
-                                        yield word + " "
-                                    else:
-                                        yield word
+            # Use non-streaming get_advice and simulate streaming by yielding words
+            # Agent streaming with tools is complex - this provides better UX
+            advice = self.get_advice(user_query, game_state, use_rag)
+
+            # Yield word by word for streaming effect
+            words = advice.split()
+            for i, word in enumerate(words):
+                if i < len(words) - 1:
+                    yield word + " "
+                else:
+                    yield word
         except Exception as e:
             logger.error(f"Error streaming advice: {e}")
             yield f"Sorry, I encountered an error: {str(e)}"

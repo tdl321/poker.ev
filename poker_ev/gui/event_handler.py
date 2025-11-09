@@ -153,5 +153,9 @@ class EventHandler:
             # Cancel raise input
             self.gui.cancel_raise()
             return True
+        elif key == pygame.K_TAB:
+            # Toggle chat panel visibility
+            self.gui.toggle_chat()
+            return True
 
         return False

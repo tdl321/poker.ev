@@ -47,6 +47,7 @@ def main():
     print("    - C: Call/Check")
     print("    - R: Raise")
     print("    - A: All In")
+    print("    - Tab: Toggle AI advisor panel")
     print("    - ESC: Cancel raise")
     print()
     print("AI Opponents:")
