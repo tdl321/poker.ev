@@ -561,11 +561,10 @@ Note: The game state above is automatically provided for your context. Use it to
         user_query: str
     ) -> Generator[str, None, None]:
         """
-        Get poker advice with TRUE streaming (immediate feedback)
+        Get poker advice with clean streaming (no tool clutter)
 
         Uses native LangChain agent.stream() for real-time token streaming.
-        Shows intermediate agent steps (tool calls) and streams response as
-        LLM generates it (no artificial delays).
+        Filters out tool calls and only streams the final AI response text.
 
         Automatically injects current game state into every query to ensure
         the LLM always has card/board/pot context available.
@@ -574,7 +573,7 @@ Note: The game state above is automatically provided for your context. Use it to
             user_query: User's question
 
         Yields:
-            Text chunks (word-by-word) and tool indicators as they arrive
+            Text chunks (word-by-word) as the response is generated
         """
         try:
             # Build context-enhanced query with automatic game state injection
@@ -588,11 +587,9 @@ Note: The game state above is automatically provided for your context. Use it to
                 "messages": [{"role": "user", "content": enhanced_query}]
             }, stream_mode="messages"):
 
-                # Show intermediate steps: tool calls
+                # Skip tool calls - users don't need to see internal processing
                 if hasattr(token, 'tool_calls') and token.tool_calls:
-                    for tool_call in token.tool_calls:
-                        tool_name = tool_call.get('name', 'unknown')
-                        yield f"\n🔧 Using tool: {tool_name}...\n"
+                    continue
 
                 # Stream text content (word-by-word)
                 if hasattr(token, 'content') and token.content:
