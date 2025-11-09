@@ -42,3 +42,6 @@ Thumbs.db
 # Game logs
 *.pgn
 hand_history/
+
+# Environment variables
+.env

@@ -1,381 +1,448 @@
-# poker.ev Implementation Status
+# LLM Chat Integration - Implementation Status
 
-**Date:** November 8, 2024
-**Status:** Phase 1 Implementation - Bug Fixing in Progress
+## 🎉 Completed Phases (1-5, Phase 2)
 
----
+### ✅ Phase 1: Project Structure & Dependencies
+**Status**: Complete
 
-## Overview
+**Created**:
+- Directory structure: `llm/`, `rag/`, `memory/`, `gui/chat/`
+- Updated `requirements.txt` with all dependencies
+- Poker knowledge base (4 comprehensive markdown files)
 
-Implementation of poker.ev following the integration plan has revealed several API incompatibilities between the assumed texasholdem API and the actual API. This document tracks corrections made and remaining issues.
-
----
-
-## ✅ Completed Components
-
-### 1. Project Structure
-- ✅ Created `poker_ev/` package structure
-- ✅ Created subdirectories: `engine/`, `gui/`, `agents/`, `utils/`
-- ✅ Copied assets from pyker (cards, buttons, fonts)
-- ✅ Created `requirements.txt`
-- ✅ Created example scripts
-
-### 2. Core Modules Implemented
-- ✅ `poker_ev/engine/game_wrapper.py` - PokerGame wrapper class
-- ✅ `poker_ev/gui/card_renderer.py` - CardRenderer class
-- ✅ `poker_ev/gui/event_handler.py` - EventHandler class
-- ✅ `poker_ev/gui/pygame_gui.py` - PygameGUI main interface
-- ✅ `poker_ev/agents/agent_manager.py` - AgentManager with 4 AI types
-- ✅ `main.py` - Main entry point
-- ✅ `README.md` - Complete documentation
-- ✅ `setup.sh` - Setup script
-- ✅ `test_components.py` - Component tests
-
-### 3. Dependencies Installed
-- ✅ pygame 2.6.1
-- ✅ numpy
-- ✅ Deprecated
-- ✅ texasholdem (from local clone)
+**Files**:
+- `poker_ev/rag/knowledge_base/hand_rankings.md`
+- `poker_ev/rag/knowledge_base/pot_odds.md`
+- `poker_ev/rag/knowledge_base/position_strategy.md`
+- `poker_ev/rag/knowledge_base/opponent_profiling.md`
 
 ---
 
-## 🐛 Bugs Found and Fixed
+### ✅ Phase 2: Retro Chat UI Components
+**Status**: Complete
 
-### Bug #1: Pot Total API ❌ → ✅ FIXED
+All Pygame-based chat UI components are implemented with **8-bit retro styling**:
 
-**Original Code (Incorrect):**
-```python
-pot = self.engine.pot_total  # AttributeError: no attribute 'pot_total'
+#### **ScrollHandler** (`scroll_handler.py`)
+- Retro-styled scrollbar with pixel art borders
+- Mouse wheel and drag scrolling
+- Auto-scroll to bottom
+- Smooth animations
+- Grip lines for retro aesthetic
+
+**Features**:
+- Green/cyan retro color scheme
+- Handles content taller than viewport
+- Detects when user scrolls up (disables auto-scroll)
+- Jump to bottom when new messages arrive
+
+#### **MessageRenderer** (`message_renderer.py`)
+- Renders chat bubbles with pixel-art borders
+- Different colors for user/AI/system messages
+- Text wrapping for long messages
+- Timestamp display
+- Animated typing indicator
+
+**Styling**:
+- User messages: Green theme, right-aligned
+- AI messages: Cyan theme, left-aligned
+- System messages: Gold theme, centered
+- Pixel-art corner decorations
+
+#### **ChatInput** (`chat_input.py`)
+- Text input with blinking cursor
+- Full keyboard support (arrow keys, home, end, etc.)
+- Auto-scrolling for long text
+- Placeholder text
+- Retro pixel borders
+
+**Features**:
+- Click to focus/position cursor
+- Cursor animation (30 FPS blink)
+- Horizontal scroll for overflow text
+- Submit on Enter key
+- Clear on submit
+
+#### **ChatPanel** (`chat_panel.py`)
+- Main container combining all components
+- 3-section layout: Header, Messages, Input
+- Message history with scrolling
+- Typing indicator during AI response
+- Thread-safe message handling
+
+**Layout**:
+- Header (60px): "POKER ADVISOR" title
+- Messages area: Scrollable history
+- Input (60px): Text input at bottom
+- Side scrollbar (12px)
+
+**Each component has standalone test code - run with**: `python <filename>.py`
+
+---
+
+### ✅ Phase 3: Ollama LLM Client
+**Status**: Complete
+
+#### **OllamaClient** (`ollama_client.py`)
+- HTTP client for Ollama API (localhost:11434)
+- Chat and streaming support
+- Embeddings generation
+- Model management
+- Error handling with helpful messages
+
+**Features**:
+- Check if Ollama is available
+- List installed models
+- Generate chat responses
+- Stream responses word-by-word (for real-time display)
+- Generate embeddings for RAG
+
+**Models Supported**:
+- `llama3.1:8b` (default, fast)
+- `llama3.1:70b` (higher quality, slower)
+- Any Ollama-compatible model
+
+#### **GameContextProvider** (`game_context.py`)
+- Converts poker game state to natural language
+- Formats cards with Unicode symbols (A♠, K♥)
+- Position names (Button, SB, BB, UTG, etc.)
+- Phase descriptions (PRE-FLOP, FLOP, TURN, RIVER)
+- Pot odds calculation
+- Complete situation summary for LLM
+
+**Example Output**:
+```
+============================================================
+CURRENT HAND
+============================================================
+
+🃏 YOUR CARDS: A♠ K♥
+📍 POSITION: Button (BTN)
+
+🎯 PHASE: FLOP
+🎴 BOARD: Q♥ J♦ 10♣
+
+💰 POT: $150
+💵 YOUR CHIPS: $850
+📢 TO CALL: $30
+
+============================================================
+OPPONENTS
+============================================================
+
+Player 1 (Call Agent - always calls):
+  Position: Small Blind (SB), $900, BET $30, ACTIVE
+...
 ```
 
-**Issue:** The texasholdem API doesn't have a `pot_total` attribute.
+---
 
-**Actual API:** Pots are stored in a list with `amount` attribute.
+### ✅ Phase 4: RAG System
+**Status**: Complete
 
-**Fix Applied:**
-```python
-# poker_ev/engine/game_wrapper.py (line 81)
-total_pot = sum(pot.amount for pot in self.engine.pots)
-```
+#### **PokerDocumentLoader** (`document_loader.py`)
+- Loads markdown files from knowledge base
+- Smart chunking (500 chars, 100 overlap)
+- Metadata extraction
+- Preserves document structure
 
-**Files Modified:**
-- `poker_ev/engine/game_wrapper.py` - Line 81
-- `poker_ev/agents/agent_manager.py` - Line 135
+**Features**:
+- Recursive text splitting
+- Category tagging from filename
+- Chunk IDs for reference
+- Load individual or all files
 
-**Test Status:** ✅ PASSING
+#### **PokerVectorStore** (`vector_store.py`)
+- Qdrant in-memory vector database
+- SentenceTransformer embeddings
+- Semantic search
+- Similarity scoring
+
+**Features**:
+- `all-MiniLM-L6-v2` embedding model (384 dimensions)
+- Cosine similarity search
+- Score thresholding
+- Formatted context for LLM
+- Collection statistics
+
+**Knowledge Base Coverage**:
+- Hand rankings and equity
+- Pot odds and expected value
+- Position-based strategy
+- Opponent profiling and exploits
+- ~40+ document chunks indexed
 
 ---
 
-### Bug #2: Card Suit Representation ❌ → ✅ FIXED
+### ✅ Phase 5: Memory & Pattern Tracking
+**Status**: Complete
 
-**Original Code (Incorrect):**
+#### **HandHistory** (`hand_history.py`)
+- SQLite database for persistent storage
+- Stores: cards, board, actions, pot, outcome, profit
+- Query by outcome, time, filters
+- Statistics tracking
+
+**Data Stored**:
 ```python
-SUIT_MAP = {
-    'spades': 'S',   # Assumed suits were strings
-    'hearts': 'H',
-    'diamonds': 'D',
-    'clubs': 'C'
+{
+  'hand_id': 'uuid',
+  'timestamp': 'ISO timestamp',
+  'your_cards': ['A♠', 'K♥'],
+  'board': ['Q♥', 'J♦', '10♣', '9♠', '2♥'],
+  'actions': [action_list],
+  'pot': 150,
+  'winner': 0,
+  'outcome': 'won',
+  'profit': 75,
+  'phase': 'RIVER',
+  'position': 'Button',
+  'notes': 'Optional notes'
 }
 ```
 
-**Issue:** In texasholdem, card suits are integers (bit flags), not strings.
+#### **PatternTracker** (`pattern_tracker.py`)
+- Win rate by position analysis
+- Aggression factor (raises/calls)
+- Fold frequency by phase
+- Leak identification
+- Opponent profiling
 
-**Actual API:**
-- Spades = 1
-- Hearts = 2
-- Diamonds = 4
-- Clubs = 8
+**Analysis Provided**:
+- Position statistics (win rate per position)
+- Playing style (passive, balanced, aggressive)
+- Common mistakes (over-folding, under-betting)
+- Exploits for each AI agent
+- Overall performance metrics
 
-**Fix Applied:**
+#### **SessionManager** (`session_manager.py`)
+- Chat session persistence
+- Conversation history
+- Export to text/markdown
+- Auto-save every 5 messages
+
+**Features**:
+- Create/load sessions
+- Message storage with metadata
+- Recent message context for LLM
+- List all sessions
+- Export conversations
+
+---
+
+## 🚧 Remaining Work
+
+### Phase 6: LLM Poker Advisor Agent
+**Status**: Not Started
+
+**Need to Build**:
+- `poker_advisor.py` - Main agent orchestrator
+- LangChain agent with tools:
+  - `search_poker_knowledge()` - RAG search
+  - `get_hand_history()` - Recent hands
+  - `analyze_patterns()` - Pattern analysis
+  - `calculate_pot_odds()` - Math helper
+  - `get_opponent_profile()` - AI profiling
+- System prompt for expert persona
+- Response formatting
+
+**Architecture**:
 ```python
-# poker_ev/gui/card_renderer.py (lines 27-34)
-SUIT_MAP = {
-    1: 'S',  # spades
-    2: 'H',  # hearts
-    4: 'D',  # diamonds
-    8: 'C',  # clubs
-}
+class PokerAdvisor:
+    def __init__(self, ollama_client, vector_store, hand_history, pattern_tracker):
+        # Initialize with all components
 
-# Updated conversion logic (lines 61-70)
-rank_str = self.RANK_MAP[card.rank]
-suit_int = card.suit
-suit_str = self.SUIT_MAP.get(suit_int)
-
-if suit_str is None:
-    raise ValueError(f"Unknown suit value: {suit_int}")
-
-return f"{rank_str}{suit_str}"
+    def get_advice(self, game_state, user_query):
+        # 1. Get game context
+        # 2. Search knowledge base (RAG)
+        # 3. Analyze patterns
+        # 4. Generate response with LLM
+        # 5. Return formatted advice
 ```
-
-**Files Modified:**
-- `poker_ev/gui/card_renderer.py` - Lines 27-34, 61-70
-
-**Test Status:** ✅ PASSING
 
 ---
 
-### Bug #3: Player Hand Status Check ❌ → ✅ FIXED
+### Phase 7: GUI Integration
+**Status**: Not Started
 
-**Original Code (Incorrect):**
+**Need to Modify**:
+- `pygame_gui.py` - Add chat panel to main game
+  - Resize game area (1400px → 1000px)
+  - Add 400px chat panel on right
+  - Update player positions for smaller table
+  - Thread LLM responses (non-blocking)
+  - Update game context on each action
+
+**Integration Points**:
 ```python
-if not self.engine.in_hand(player_id):  # AttributeError: no attribute 'in_hand'
-    # ...
+# In PygameGUI.__init__()
+self.chat_panel = ChatPanel(
+    panel_rect=pygame.Rect(1000, 0, 400, 900),
+    fonts...,
+    on_message_send=self.handle_chat_message
+)
+
+# In PygameGUI.run()
+# Handle chat events
+self.chat_panel.handle_event(event)
+self.chat_panel.update()
+self.chat_panel.render(self.screen)
 ```
 
-**Issue:** The texasholdem API doesn't have an `in_hand()` method.
+---
 
-**Actual API:** Player status is tracked via `player.state` (PlayerState enum).
+### Phase 8: Testing & Polish
+**Status**: Not Started
 
-**PlayerState Values:**
-- `PlayerState.SKIP` - Folded
-- `PlayerState.OUT` - Eliminated
-- `PlayerState.IN` - Active, checked
-- `PlayerState.TO_CALL` - Active, needs to call
-- `PlayerState.ALL_IN` - All in
+**Testing Needed**:
+- End-to-end chat flow
+- Ollama connection handling
+- RAG search accuracy
+- Pattern analysis correctness
+- UI responsiveness
+- Memory persistence
 
-**Fix Applied:**
+**Polish**:
+- Error messages (Ollama not running)
+- Loading states
+- Performance optimization
+- Edge case handling
+- User feedback
+
+---
+
+## 🧪 Testing Individual Components
+
+You can test each component independently:
+
+### Test Ollama Client
+```bash
+# Make sure Ollama is running first
+ollama serve
+
+# Pull model
+ollama pull llama3.1:8b
+
+# Test client
+python poker_ev/llm/ollama_client.py
+```
+
+### Test Game Context
+```bash
+python poker_ev/llm/game_context.py
+```
+
+### Test RAG System
+```bash
+python poker_ev/rag/vector_store.py
+```
+
+### Test Pattern Tracking
+```bash
+python poker_ev/memory/pattern_tracker.py
+```
+
+### Test Chat UI Components
+```bash
+# Test individual components
+python poker_ev/gui/chat/scroll_handler.py
+python poker_ev/gui/chat/message_renderer.py
+python poker_ev/gui/chat/chat_input.py
+python poker_ev/gui/chat/chat_panel.py
+```
+
+---
+
+## 📦 Installation & Setup
+
+### 1. Install Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Install Ollama
+```bash
+# Linux/Mac
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Start Ollama server
+ollama serve
+
+# Pull model (in another terminal)
+ollama pull llama3.1:8b
+```
+
+### 3. Initialize RAG System (First Time)
 ```python
-# poker_ev/engine/game_wrapper.py (lines 10, 112-134)
-from texasholdem import PlayerState  # Added import
+from poker_ev.rag.vector_store import PokerVectorStore
 
-# Check player status using state enum
-player = self.engine.players[player_id]
-is_active = player.state != PlayerState.SKIP and player.state != PlayerState.OUT
-is_folded = player.state == PlayerState.SKIP
-
-if not is_active:
-    states.append({
-        'active': False,
-        'in_game': True,
-        'id': player_id,
-        'chips': player.chips,
-    })
-    continue
-
-states.append({
-    'active': True,
-    'in_game': True,
-    'id': player_id,
-    'chips': player.chips,
-    'bet': self.engine.player_bet_amount(player_id),
-    'hand': self.engine.get_hand(player_id) if self.engine.is_hand_running() else [],
-    'folded': is_folded,
-    'all_in': player.state == PlayerState.ALL_IN,
-})
+# Create and populate vector store
+vector_store = PokerVectorStore()
+num_docs = vector_store.initialize_from_knowledge_base()
+print(f"Indexed {num_docs} poker strategy documents")
 ```
 
-**Files Modified:**
-- `poker_ev/engine/game_wrapper.py` - Lines 10, 112-134
+---
 
-**Test Status:** ✅ PASSING
+## 📊 Current Project Statistics
+
+**Lines of Code**: ~3,500+
+**Files Created**: 15+
+**Components**: 12
+- 3 LLM components
+- 2 RAG components
+- 3 Memory components
+- 4 UI components
+
+**Knowledge Base**:
+- 4 strategy documents
+- ~40+ chunks indexed
+- Topics: Hand rankings, pot odds, position, profiling
+
+**Dependencies Added**:
+- `langchain` - LLM framework
+- `qdrant-client` - Vector database
+- `sentence-transformers` - Embeddings
+- `requests` - Ollama HTTP client
 
 ---
 
-### Bug #4: Action Validation API ❌ → ✅ FIXED
+## 🚀 Next Steps
 
-**Original Code (Incorrect):**
-```python
-# poker_ev/engine/game_wrapper.py (line 155)
-if self.engine.valid_action(player, ActionType.FOLD):
-    # AttributeError: 'TexasHoldEm' object has no attribute 'valid_action'
-```
+**Immediate**:
+1. Build `PokerAdvisor` agent (Phase 6)
+2. Integrate chat panel into main game (Phase 7)
+3. End-to-end testing (Phase 8)
 
-**Issue:** The texasholdem API doesn't have a `valid_action()` method.
-
-**Actual API:** Use `get_available_moves()` which returns a `MoveIterator` object that supports the `in` operator.
-
-**Fix Applied:**
-```python
-# poker_ev/engine/game_wrapper.py (lines 138-162)
-def _get_valid_actions(self) -> List[ActionType]:
-    """Get valid actions for current player"""
-    if not self.engine.is_hand_running():
-        return []
-
-    player = self.engine.current_player
-    if player is None:
-        return []
-
-    # Get available moves from the engine
-    available_moves = self.engine.get_available_moves()
-
-    # Extract unique action types from available moves
-    actions = []
-    for action_type in [ActionType.FOLD, ActionType.CHECK, ActionType.CALL,
-                       ActionType.RAISE, ActionType.ALL_IN]:
-        if action_type in available_moves:
-            actions.append(action_type)
-
-    return actions
-```
-
-**Files Modified:**
-- `poker_ev/engine/game_wrapper.py` - Lines 138-162 (`_get_valid_actions()`)
-- `poker_ev/engine/game_wrapper.py` - Lines 164-179 (`_get_min_raise()` - now uses `min_raise()`)
-- `poker_ev/agents/agent_manager.py` - Lines 106-141 (aggressive_agent)
-- `poker_ev/agents/agent_manager.py` - Lines 143-178 (tight_agent)
-
-**Additional Fix - Pot Calculation:**
-
-Also discovered and fixed an issue where the pot total wasn't including current player bets:
-
-```python
-# poker_ev/engine/game_wrapper.py (lines 80-83)
-# Calculate total pot from all pots plus player bets
-total_pot = sum(pot.amount for pot in self.engine.pots)
-# Add all current player bets (blinds and current round bets)
-total_pot += sum(self.engine.player_bet_amount(i) for i in range(len(self.engine.players)))
-```
-
-**Test Status:** ✅ PASSING
+**After MVP**:
+- Hand replayer with AI commentary
+- Training mode with quizzes
+- Voice input/output
+- Multi-session comparison
+- Export analysis reports
 
 ---
 
-## ⚠️ Remaining Issues
+## 💡 Key Design Decisions
 
-**None! All bugs have been fixed.**
-
----
-
-## 📊 Test Results Summary
-
-### Current Test Status (4/4 Passing) ✅
-
-```
-============================================================
-poker.ev Component Tests
-============================================================
-
-✅ Imports              PASS
-✅ PokerGame           PASS
-✅ CardRenderer        PASS
-✅ AgentManager        PASS
-
-------------------------------------------------------------
-Total: 4/4 tests passed (100%)
-============================================================
-```
-
-### Test Details
-
-**Test 1: Imports** ✅
-- All modules import successfully
-- No import errors
-
-**Test 2: PokerGame Wrapper** ✅
-- ✅ Game creation works
-- ✅ Hand starting works
-- ✅ Getting game state works (pot calculation fixed)
-- ✅ Valid actions retrieved using `get_available_moves()`
-- **Pot value:** $15 (big blind $10 + small blind $5)
-
-**Test 3: CardRenderer** ✅
-- ✅ Renderer creation works
-- ✅ Card to sprite conversion works
-- ✅ All test cases pass (AS, KD, 2H, 10C)
-
-**Test 4: AgentManager** ✅
-- ✅ Manager creation works
-- ✅ Agent registration works
-- ✅ Getting actions from agents works
-- ✅ Agents use correct API for action validation
+1. **Local LLM (Ollama)**: Free, no API costs, privacy
+2. **RAG with Qdrant**: Fast semantic search, in-memory for speed
+3. **SQLite for History**: Simple, portable, no setup
+4. **Pygame UI**: Consistent with existing game, retro aesthetic
+5. **Threading**: Non-blocking LLM calls, smooth gameplay
+6. **Modular Architecture**: Each component testable independently
 
 ---
 
-## 📝 Next Steps
+## 📝 Notes
 
-### ~~Priority 1: Fix Bug #4 (Action Validation)~~ ✅ COMPLETED
-
-All API bugs have been fixed! Moving to Priority 2.
-
-### Priority 2: Run the Application (READY!)
-
-1. **Run the actual application**
-   ```bash
-   python3 main.py
-   ```
-
-2. **Test gameplay**
-   - Verify GUI displays correctly
-   - Test all action buttons
-   - Test raise slider
-   - Verify AI players work
-   - Check multiple hands
-
-3. **Fix any runtime bugs**
-
-4. **Update documentation**
+- All UI components use the same retro color scheme as the poker game
+- Chat panel is 400px wide (fits nicely on 1400px screens)
+- LLM responses are streamed for better UX
+- Hand history persists across sessions
+- Pattern analysis requires minimum sample size (10+ hands)
 
 ---
 
-## 🎯 Success Criteria
-
-### Phase 1 Status: TESTS PASSING ✅
-
-- ✅ All dependencies installed
-- ✅ All imports work
-- ✅ All 4 component tests pass (4/4 - 100%)
-- ⬜ Application runs without crashes (NEXT STEP)
-- ⬜ Can play at least one full hand
-- ⬜ All AI agents make valid moves
-- ⬜ GUI renders correctly
-
-### Ready for Phase 2 When:
-- All Phase 1 criteria met
-- Can play multiple hands without crashes
-- All edge cases handled (all-ins, side pots, etc.)
-- Ready to add advanced features (GTO agent, ML, etc.)
-
----
-
-## 📁 Files Modified Summary
-
-### Core Implementation Files
-1. `poker_ev/engine/game_wrapper.py` - PokerGame wrapper (3 bugs fixed, 1 remaining)
-2. `poker_ev/gui/card_renderer.py` - Card rendering (1 bug fixed)
-3. `poker_ev/gui/event_handler.py` - Input handling (no bugs yet)
-4. `poker_ev/gui/pygame_gui.py` - Main GUI (no bugs yet - untested)
-5. `poker_ev/agents/agent_manager.py` - AI agents (1 bug fixed, uses invalid API)
-
-### Test Files
-1. `test_components.py` - Component tests (1 test case fixed)
-
-### Documentation
-1. `README.md` - Complete user documentation
-2. `INTEGRATION_PLAN.md` - Implementation plan
-3. `REPOSITORY_COMPARISON.md` - Comparison analysis
-4. `IMPLEMENTATION_STATUS.md` - This file
-
----
-
-## 💡 Lessons Learned
-
-### What Went Wrong
-1. **API Assumptions:** Originally wrote code based on assumed API without checking actual texasholdem documentation
-2. **No Early Testing:** Should have tested basic API calls before writing full implementation
-3. **Missing Examples:** Should have examined texasholdem's examples and tests first
-
-### What Went Right
-1. **Modular Design:** Clean separation allowed fixing bugs module by module
-2. **Test Suite:** Component tests caught all bugs before runtime
-3. **Documentation:** Well-documented code made debugging easier
-
-### Best Practices for Next Time
-1. ✅ **Test API first** - Write small scripts to verify API before building
-2. ✅ **Read docs/examples** - Study the library's own examples
-3. ✅ **Incremental testing** - Test each module as it's written
-4. ✅ **Version compatibility** - Check library version matches documentation
-
----
-
-## 🔗 Related Files
-
-- [Integration Plan](./INTEGRATION_PLAN.md) - Original implementation plan
-- [Repository Comparison](./REPOSITORY_COMPARISON.md) - texasholdem vs pyker analysis
-- [README](./README.md) - User-facing documentation
-- [Test Suite](./test_components.py) - Component tests
-
----
-
-**Last Updated:** November 8, 2024
-**Next Update:** After fixing Bug #4 and running full application test
+**Last Updated**: Phase 2 Complete
+**Next Phase**: Phase 6 - LLM Poker Advisor Agent

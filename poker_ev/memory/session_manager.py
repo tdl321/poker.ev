@@ -1,38 +1,42 @@
 """
 Session Manager for poker.ev
 
-Manages chat sessions and conversation history.
+Manages chat sessions and conversation history using Pinecone.
 """
 
-import json
-from pathlib import Path
 from typing import List, Dict, Optional
 from datetime import datetime
 import logging
+
+from poker_ev.memory.pinecone_store import PineconeMemoryStore
 
 logger = logging.getLogger(__name__)
 
 
 class SessionManager:
     """
-    Manages chat sessions and conversation history
+    Manages chat sessions and conversation history using Pinecone
 
-    Stores conversations to disk for persistence across sessions.
+    Stores conversation summaries as vectors for semantic search and retrieval.
     """
 
-    def __init__(self, sessions_dir: str = None):
+    def __init__(self, pinecone_store: Optional[PineconeMemoryStore] = None):
         """
         Initialize session manager
 
         Args:
-            sessions_dir: Directory to store session files
+            pinecone_store: PineconeMemoryStore instance (creates new if None)
         """
-        if sessions_dir is None:
-            # Default to poker_ev/memory/sessions/
-            sessions_dir = Path(__file__).parent / "sessions"
-
-        self.sessions_dir = Path(sessions_dir)
-        self.sessions_dir.mkdir(parents=True, exist_ok=True)
+        if pinecone_store is None:
+            try:
+                self.store = PineconeMemoryStore()
+                logger.info("Session manager initialized with new Pinecone store")
+            except Exception as e:
+                logger.error(f"Failed to initialize Pinecone store: {e}")
+                raise
+        else:
+            self.store = pinecone_store
+            logger.info("Session manager initialized with provided Pinecone store")
 
         self.current_session_id = None
         self.current_messages = []
@@ -69,9 +73,9 @@ class SessionManager:
 
         self.current_messages.append(message)
 
-        # Auto-save every 5 messages
+        # Auto-save session summary every 5 messages
         if len(self.current_messages) % 5 == 0:
-            self.save_session()
+            self._save_session_summary()
 
     def get_messages(
         self,
@@ -116,109 +120,215 @@ class SessionManager:
             for m in messages
         ]
 
-    def save_session(self) -> bool:
+    def _create_session_summary(self) -> str:
         """
-        Save current session to disk
+        Create a summary of the current session for embedding
+
+        Returns:
+            Summary string
+        """
+        if not self.current_messages:
+            return "Empty session"
+
+        # Extract key information
+        user_messages = [m for m in self.current_messages if m['role'] == 'user']
+        assistant_messages = [m for m in self.current_messages if m['role'] == 'assistant']
+
+        # Get topics from user questions
+        user_questions = [m['content'][:100] for m in user_messages[:5]]  # First 5 questions
+
+        # Create summary
+        summary = f"Chat session with {len(self.current_messages)} messages. "
+        summary += f"User asked about: {', '.join(user_questions[:3])}"
+
+        return summary
+
+    def _extract_topics(self) -> List[str]:
+        """
+        Extract topics from conversation
+
+        Returns:
+            List of topics discussed
+        """
+        topics = []
+
+        # Simple keyword extraction
+        keywords = {
+            'pot_odds': ['pot odds', 'odds', 'equity'],
+            'bluffing': ['bluff', 'bluffing', 'semi-bluff'],
+            'position': ['position', 'button', 'blinds'],
+            'hand_strength': ['hand strength', 'premium', 'pocket'],
+            'betting': ['bet', 'raise', 'call', 'fold'],
+            'tournament': ['tournament', 'mtt', 'sit and go'],
+            'cash_game': ['cash game', 'nlhe'],
+        }
+
+        # Check messages for keywords
+        all_text = ' '.join([m['content'].lower() for m in self.current_messages])
+
+        for topic, words in keywords.items():
+            if any(word in all_text for word in words):
+                topics.append(topic)
+
+        return topics
+
+    def _extract_advice(self) -> List[str]:
+        """
+        Extract advice given in conversation
+
+        Returns:
+            List of advice snippets
+        """
+        advice = []
+
+        # Get assistant messages that contain advice indicators
+        advice_indicators = ['should', 'consider', 'try', 'recommend', 'suggest']
+
+        for msg in self.current_messages:
+            if msg['role'] == 'assistant':
+                content = msg['content']
+                if any(indicator in content.lower() for indicator in advice_indicators):
+                    # Extract first sentence or up to 100 chars
+                    snippet = content.split('.')[0][:100]
+                    advice.append(snippet)
+
+        return advice[:5]  # Top 5 pieces of advice
+
+    def _save_session_summary(self) -> bool:
+        """
+        Save current session summary to Pinecone
 
         Returns:
             True if saved successfully
         """
-        if not self.current_session_id:
-            logger.warning("No active session to save")
+        if not self.current_session_id or not self.current_messages:
             return False
 
         try:
-            session_file = self.sessions_dir / f"{self.current_session_id}.json"
-
+            # Create session data
             session_data = {
                 'session_id': self.current_session_id,
-                'created_at': self.current_messages[0]['timestamp'] if self.current_messages else datetime.now().isoformat(),
-                'updated_at': datetime.now().isoformat(),
+                'timestamp': self.current_messages[0]['timestamp'] if self.current_messages else datetime.now().isoformat(),
+                'summary': self._create_session_summary(),
+                'topics': self._extract_topics(),
+                'advice_given': self._extract_advice(),
+                'user_questions': [m['content'][:100] for m in self.current_messages if m['role'] == 'user'][:10],
+                'hands_discussed': [],  # Could extract from metadata
                 'message_count': len(self.current_messages),
-                'messages': self.current_messages
+                'duration_minutes': 0  # Could calculate from timestamps
             }
 
-            with open(session_file, 'w', encoding='utf-8') as f:
-                json.dump(session_data, f, indent=2)
+            # Save to Pinecone
+            success = self.store.save_session(session_data)
 
-            logger.debug(f"Saved session {self.current_session_id}")
-            return True
+            if success:
+                logger.debug(f"Saved session summary {self.current_session_id}")
+            else:
+                logger.warning(f"Failed to save session summary {self.current_session_id}")
+
+            return success
 
         except Exception as e:
-            logger.error(f"Error saving session: {e}")
+            logger.error(f"Error saving session summary: {e}")
             return False
 
-    def load_session(self, session_id: str) -> bool:
+    def save_session(self) -> bool:
         """
-        Load a session from disk
+        Explicitly save current session
+
+        Returns:
+            True if saved successfully
+        """
+        return self._save_session_summary()
+
+    def search_sessions(
+        self,
+        query: str,
+        limit: int = 5
+    ) -> List[Dict]:
+        """
+        Search for past sessions using semantic search
 
         Args:
-            session_id: Session ID to load
+            query: Search query (e.g., "discussions about pot odds")
+            limit: Maximum number of sessions to return
 
         Returns:
-            True if loaded successfully
+            List of matching sessions
         """
         try:
-            session_file = self.sessions_dir / f"{session_id}.json"
+            results = self.store.search_sessions(query=query, top_k=limit)
 
-            if not session_file.exists():
-                logger.warning(f"Session file not found: {session_id}")
-                return False
+            sessions = []
+            for result in results:
+                session = result.get('metadata', {})
+                session['similarity_score'] = result.get('score')
+                sessions.append(session)
 
-            with open(session_file, 'r', encoding='utf-8') as f:
-                session_data = json.load(f)
-
-            self.current_session_id = session_data['session_id']
-            self.current_messages = session_data['messages']
-
-            logger.info(f"Loaded session {session_id} with {len(self.current_messages)} messages")
-            return True
+            logger.debug(f"Found {len(sessions)} sessions for query: '{query}'")
+            return sessions
 
         except Exception as e:
-            logger.error(f"Error loading session: {e}")
-            return False
+            logger.error(f"Error searching sessions: {e}")
+            return []
 
-    def list_sessions(self) -> List[Dict]:
+    def get_related_sessions(
+        self,
+        current_topic: str,
+        limit: int = 3
+    ) -> List[Dict]:
         """
-        List all saved sessions
+        Get sessions related to current topic
+
+        Args:
+            current_topic: Current discussion topic
+            limit: Maximum number of sessions to return
 
         Returns:
-            List of session info dicts
+            List of related sessions
         """
-        sessions = []
+        return self.search_sessions(query=current_topic, limit=limit)
 
-        for session_file in self.sessions_dir.glob("*.json"):
-            try:
-                with open(session_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-
-                sessions.append({
-                    'session_id': data['session_id'],
-                    'created_at': data.get('created_at', 'unknown'),
-                    'message_count': data.get('message_count', 0)
-                })
-
-            except Exception as e:
-                logger.warning(f"Error reading {session_file}: {e}")
-
-        # Sort by creation time (newest first)
-        sessions.sort(key=lambda x: x['created_at'], reverse=True)
-
-        return sessions
-
-    def get_latest_session(self) -> Optional[str]:
+    def get_past_advice_on_topic(
+        self,
+        topic: str,
+        limit: int = 5
+    ) -> List[str]:
         """
-        Get ID of most recent session
+        Get past advice given on a specific topic
+
+        Args:
+            topic: Topic to search for
+            limit: Maximum number of advice items to return
 
         Returns:
-            Session ID or None if no sessions exist
+            List of past advice snippets
         """
-        sessions = self.list_sessions()
-        return sessions[0]['session_id'] if sessions else None
+        try:
+            # Search for related sessions
+            sessions = self.search_sessions(query=topic, limit=limit)
+
+            # Extract advice from sessions
+            all_advice = []
+            for session in sessions:
+                advice = session.get('advice_given', [])
+                if isinstance(advice, list):
+                    all_advice.extend(advice)
+
+            return all_advice[:limit]
+
+        except Exception as e:
+            logger.error(f"Error getting past advice: {e}")
+            return []
 
     def clear_session(self):
-        """Clear current session without deleting file"""
+        """Clear current session without saving"""
+        # Save before clearing
+        if self.current_messages:
+            self._save_session_summary()
+
         self.current_messages = []
+        self.current_session_id = None
         logger.info("Current session cleared")
 
     def export_conversation(self, format: str = 'txt') -> str:
@@ -264,11 +374,16 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
     # Create session manager
-    manager = SessionManager()
+    try:
+        manager = SessionManager()
+        print("✅ Session manager initialized with Pinecone")
+    except Exception as e:
+        print(f"❌ Failed to initialize: {e}")
+        exit(1)
 
     # Create new session
     session_id = manager.create_session()
-    print(f"✅ Created session: {session_id}")
+    print(f"\n✅ Created session: {session_id}")
 
     # Add some messages
     manager.add_message(
@@ -280,12 +395,25 @@ if __name__ == "__main__":
     manager.add_message(
         role='assistant',
         content='With pocket jacks in this situation, calling is reasonable. '
-                'You have a strong hand but need to be cautious of overcards on the flop.'
+                'You have a strong hand but need to be cautious of overcards on the flop. '
+                'Consider your position and the pot odds.'
     )
 
     manager.add_message(
         role='user',
-        content='What about pot odds?'
+        content='What about pot odds calculations?'
+    )
+
+    manager.add_message(
+        role='assistant',
+        content='Pot odds are the ratio of the current pot size to the cost of a contemplated call. '
+                'To calculate: divide the amount you need to call by the pot after you call. '
+                'Compare this to your equity in the hand.'
+    )
+
+    manager.add_message(
+        role='user',
+        content='How do I improve my button play?'
     )
 
     # Get conversation context
@@ -295,16 +423,25 @@ if __name__ == "__main__":
         print(f"  {msg['role']}: {msg['content'][:50]}...")
 
     # Save session
-    manager.save_session()
-    print(f"\n💾 Session saved")
+    if manager.save_session():
+        print(f"\n💾 Session saved to Pinecone")
 
-    # List sessions
-    sessions = manager.list_sessions()
-    print(f"\n📋 Available sessions: {len(sessions)}")
-    for sess in sessions:
-        print(f"  • {sess['session_id']} ({sess['message_count']} messages)")
+    # Search for sessions
+    print("\n🔍 Searching for sessions about 'pot odds'...")
+    results = manager.search_sessions("pot odds calculation")
+    print(f"Found {len(results)} sessions:")
+    for session in results:
+        print(f"  • {session.get('session_id')} (score: {session.get('similarity_score', 0):.3f})")
+        print(f"    Summary: {session.get('summary', 'N/A')[:80]}...")
+
+    # Get past advice
+    print("\n📚 Past advice on 'button play'...")
+    advice = manager.get_past_advice_on_topic("button play")
+    print(f"Found {len(advice)} pieces of advice:")
+    for i, adv in enumerate(advice, 1):
+        print(f"  {i}. {adv}")
 
     # Export conversation
     export = manager.export_conversation(format='txt')
     print(f"\n📄 Exported conversation:\n")
-    print(export[:500] + "...")
+    print(export[:500] + "..." if len(export) > 500 else export)
