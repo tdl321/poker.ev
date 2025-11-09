@@ -260,6 +260,7 @@ class PokerTools:
             """Estimate the strength of a poker hand with equity calculations and combinatorics.
 
             Input: Hand description (e.g., 'pocket aces', 'AKs', 'suited connectors', 'QQ')
+            Also accepts card format from game: 'Ad 5h', 'Ks Kd', 'Th 9h'
 
             Provides:
             - Hand strength tier (premium/strong/medium/weak)
@@ -272,6 +273,41 @@ class PokerTools:
             Use when teaching hand selection, evaluating preflop strength, or explaining probability.
             """
             hand_lower = hand_description.lower().strip()
+
+            # Preprocess: Parse "Ad 5h" format (cards with suit letters)
+            import re
+            # Match pattern like "Ad 5h" or "Ks Kd" or "Th9h"
+            card_pattern = re.match(r'([akqjt2-9])[shdc♠♥♦♣]?\s*([akqjt2-9])[shdc♠♥♦♣]?', hand_lower)
+            if card_pattern:
+                rank1 = card_pattern.group(1).upper()
+                rank2 = card_pattern.group(2).upper()
+
+                # Detect if suited or offsuit from original input
+                # Count how many suit letters (s,h,d,c) appear
+                suits_found = re.findall(r'[shdc♠♥♦♣]', hand_lower)
+
+                # If same suit letters appear, it's suited
+                if len(suits_found) == 2:
+                    is_suited = suits_found[0] == suits_found[1]
+                else:
+                    # No suit info, assume offsuit unless specified
+                    is_suited = False
+
+                # Convert to standard format
+                if rank1 == rank2:
+                    # Pocket pair
+                    hand_lower = rank1 + rank2
+                else:
+                    # Two different ranks
+                    # Sort by rank strength (A=14, K=13, Q=12, J=11, T=10, 9-2)
+                    rank_values = {'a': 14, 'k': 13, 'q': 12, 'j': 11, 't': 10}
+                    val1 = rank_values.get(rank1.lower(), int(rank1))
+                    val2 = rank_values.get(rank2.lower(), int(rank2))
+
+                    if val1 >= val2:
+                        hand_lower = rank1 + rank2 + ('s' if is_suited else 'o')
+                    else:
+                        hand_lower = rank2 + rank1 + ('s' if is_suited else 'o')
 
             # Premium hands with detailed equity
             if 'aa' in hand_lower or 'aces' in hand_lower or 'pocket aces' in hand_lower:
@@ -563,6 +599,47 @@ class PokerTools:
 • Very vulnerable to overcards
 • Difficult to play for stacks
 • Profitable only with good implied odds"""
+
+            # Generic weak/marginal offsuit hands (catch-all)
+            elif 'o' in hand_lower or (len(hand_lower) >= 2 and hand_lower[0] != hand_lower[1]):
+                # Extract ranks if possible
+                rank_chars = ''.join([c for c in hand_lower if c in 'akqjt23456789'])
+                if len(rank_chars) >= 2:
+                    high_rank = rank_chars[0].upper()
+                    low_rank = rank_chars[1].upper()
+                    is_suited = 's' in hand_lower
+
+                    return f"""🃏 **Hand Strength: WEAK/MARGINAL HAND**
+
+**Hand: {high_rank}{low_rank}{'s' if is_suited else 'o'}**
+
+**Equity Analysis:**
+• Equity vs random hand: ~40-55% (depends on specific ranks)
+• This is a weak to marginal starting hand
+• {'Suited' if is_suited else 'Offsuit'} - {'some' if is_suited else 'limited'} flush potential
+
+**Strategic Recommendations:**
+• Position: POSITION-DEPENDENT - mostly fold from early position
+• Late position: Can play with right pot odds
+• Fold to raises unless you have excellent position
+• Not strong enough to build a pot with
+
+**Why it's Weak:**
+• Low connectivity - limited straight potential
+• Gap between ranks reduces drawing possibilities
+• Weak kicker - even if you hit, you may be dominated
+• Low showdown value without improvement
+
+**Risk Awareness:**
+• Often dominated by better hands with same high card
+• Expensive to play if you don't hit the flop
+• Best strategy: Fold most of the time, especially early position
+• Only playable in late position with no raises, or in blind defense situations
+
+**When to Play:**
+• Late position, no raises, cheap to see flop
+• Big blind defense with good pot odds
+• Otherwise: FOLD and wait for better spots"""
 
             else:
                 return """🃏 **Hand Strength: UNABLE TO CLASSIFY**
