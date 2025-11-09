@@ -930,7 +930,7 @@ class PygameGUI:
 
     def render_raise_input(self, chips_to_call: int, min_raise: int):
         """Render raise amount input"""
-        print(f"[DEBUG] render_raise_input called - min_raise={min_raise}, percentage={self.raise_percentage:.2f}")
+        print(f"[DEBUG] render_raise_input called - chips_to_call={chips_to_call}, min_raise={min_raise}, percentage={self.raise_percentage:.2f}")
         center_x = self.window_size[0] // 2
         center_y = self.window_size[1] // 2
 
@@ -945,10 +945,29 @@ class PygameGUI:
 
         # Calculate raise amount based on percentage
         player = self.game.engine.players[0]
-        # The total bet ranges from (chips_to_call + min_raise) to (chips_to_call + player.chips)
-        min_total_bet = chips_to_call + min_raise
-        max_total_bet = chips_to_call + player.chips
-        self.raise_amount = int(min_total_bet + (max_total_bet - min_total_bet) * self.raise_percentage)
+        player_current_bet = self.game.engine.player_bet_amount(0)
+
+        # Maximum player can bet total = current bet + remaining chips
+        max_total_bet = player_current_bet + player.chips
+
+        # Minimum total bet for a valid raise = need to call + minimum raise
+        # But we need to know the current highest bet first
+        highest_bet = player_current_bet + chips_to_call
+        min_total_bet = highest_bet + min_raise
+
+        # Clamp min_total_bet to what player can afford
+        # If player can't afford minimum raise, they can only go all-in
+        if max_total_bet < min_total_bet:
+            min_total_bet = max_total_bet
+
+        # Calculate raise amount on slider
+        if max_total_bet <= min_total_bet:
+            # Can only go all-in
+            self.raise_amount = max_total_bet
+        else:
+            self.raise_amount = int(min_total_bet + (max_total_bet - min_total_bet) * self.raise_percentage)
+
+        print(f"[DEBUG] Raise calculation - current_bet=${player_current_bet}, chips=${player.chips}, max_total=${max_total_bet}, min_total=${min_total_bet}, raise_amount=${self.raise_amount}")
 
         # Amount display
         amount_text = self.font_medium.render(f"${self.raise_amount}", True, self.GOLD_COLOR)
