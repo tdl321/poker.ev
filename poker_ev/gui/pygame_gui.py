@@ -160,6 +160,23 @@ class PygameGUI:
         # Get current game state
         game_state = self.game.get_game_state()
 
+        # Enhance message with explicit game state context when user asks about current hand
+        # This prevents the LLM from confusing current hand with past hands from vector DB
+        enhanced_message = message
+        if game_state and game_state.get('hand_active'):
+            # Keywords indicating user is asking about current hand
+            current_hand_keywords = ['current', 'this hand', 'my hand', 'best move', 'should i', 'what do']
+            if any(keyword in message.lower() for keyword in current_hand_keywords):
+                try:
+                    from poker_ev.llm.game_context import GameContextProvider
+                    context_provider = GameContextProvider(self.game)
+                    current_situation = context_provider.get_full_context(include_pot_odds=False)
+                    # Prepend the current game state to the message
+                    enhanced_message = f"[CURRENT GAME STATE - Use ONLY these cards, not any from past hands]\n{current_situation}\n\n[USER QUERY]\n{message}"
+                except Exception as e:
+                    # If context extraction fails, use original message
+                    pass
+
         # Run in thread to avoid blocking game
         def stream_response():
             try:
@@ -170,7 +187,7 @@ class PygameGUI:
                 self.chat_panel.start_streaming_message()
 
                 # Stream chunks from DeepSeek API and update progressively
-                for chunk in self.poker_advisor.get_advice_stream(message, game_state):
+                for chunk in self.poker_advisor.get_advice_stream(enhanced_message, game_state):
                     if chunk:  # Only add non-empty chunks
                         self.chat_panel.append_to_streaming_message(chunk)
 

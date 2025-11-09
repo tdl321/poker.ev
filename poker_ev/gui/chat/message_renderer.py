@@ -48,7 +48,7 @@ class MessageRenderer:
 
     def wrap_text(self, text: str, max_width: int) -> List[str]:
         """
-        Wrap text to fit within max width (handles mixed fonts)
+        Wrap text to fit within max width (handles mixed fonts and newlines)
 
         Args:
             text: Text to wrap
@@ -57,24 +57,34 @@ class MessageRenderer:
         Returns:
             List of wrapped text lines
         """
-        words = text.split(' ')
+        # First, split by explicit newlines to preserve formatting
+        paragraphs = text.split('\n')
         lines = []
-        current_line = ""
 
-        for word in words:
-            test_line = f"{current_line} {word}".strip()
-            # Use mixed-font width calculation
-            test_width = self._get_mixed_font_width(test_line)
+        for paragraph in paragraphs:
+            # Handle empty lines (from multiple newlines like \n\n)
+            if not paragraph.strip():
+                lines.append('')
+                continue
 
-            if test_width <= max_width:
-                current_line = test_line
-            else:
-                if current_line:
-                    lines.append(current_line)
-                current_line = word
+            # Wrap each paragraph
+            words = paragraph.split(' ')
+            current_line = ""
 
-        if current_line:
-            lines.append(current_line)
+            for word in words:
+                test_line = f"{current_line} {word}".strip()
+                # Use mixed-font width calculation
+                test_width = self._get_mixed_font_width(test_line)
+
+                if test_width <= max_width:
+                    current_line = test_line
+                else:
+                    if current_line:
+                        lines.append(current_line)
+                    current_line = word
+
+            if current_line:
+                lines.append(current_line)
 
         return lines if lines else [text]
 
