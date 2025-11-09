@@ -93,6 +93,7 @@ class EventHandler:
 
         # Check raise confirm
         if self.raise_confirm_rect and self.raise_confirm_rect.collidepoint(pos):
+            print(f"[DEBUG] Confirm button clicked at pos={pos}")
             self.gui.confirm_raise()
             return True
 
@@ -106,6 +107,7 @@ class EventHandler:
             pos: (x, y) position of the click
         """
         if not self.raise_slider_rect:
+            print("[DEBUG] Slider click ignored - slider_rect is None")
             return
 
         # Calculate raise amount based on slider position
@@ -115,6 +117,8 @@ class EventHandler:
 
         # Calculate percentage (0.0 to 1.0)
         percentage = max(0.0, min(1.0, (click_x - slider_x) / slider_width))
+
+        print(f"[DEBUG] Slider clicked at x={click_x}, percentage={percentage:.2f}")
 
         # Update GUI's raise amount
         self.gui.update_raise_amount(percentage)

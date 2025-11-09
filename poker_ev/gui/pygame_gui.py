@@ -462,6 +462,7 @@ class PygameGUI:
 
     def render_raise_input(self, chips_to_call: int, min_raise: int):
         """Render raise amount input"""
+        print(f"[DEBUG] render_raise_input called - min_raise={min_raise}, percentage={self.raise_percentage:.2f}")
         center_x = self.window_size[0] // 2
         center_y = self.window_size[1] // 2
 
@@ -476,8 +477,10 @@ class PygameGUI:
 
         # Calculate raise amount based on percentage
         player = self.game.engine.players[0]
-        max_raise = player.chips
-        self.raise_amount = int(min_raise + (max_raise - min_raise) * self.raise_percentage)
+        # The total bet ranges from (chips_to_call + min_raise) to (chips_to_call + player.chips)
+        min_total_bet = chips_to_call + min_raise
+        max_total_bet = chips_to_call + player.chips
+        self.raise_amount = int(min_total_bet + (max_total_bet - min_total_bet) * self.raise_percentage)
 
         # Amount display
         amount_text = self.font_medium.render(f"${self.raise_amount}", True, self.GOLD_COLOR)
@@ -505,6 +508,8 @@ class PygameGUI:
 
         self.event_handler.register_raise_confirm(confirm_rect)
 
+        print(f"[DEBUG] Slider registered: {slider_rect}, Confirm registered: {confirm_rect}, raise_amount=${self.raise_amount}")
+
     def render_message(self):
         """Render status message"""
         text = self.font_large.render(self.message, True, self.GOLD_COLOR)
@@ -523,6 +528,7 @@ class PygameGUI:
         """Handle action button click from user"""
         if action == ActionType.RAISE:
             # Show raise input
+            print("[DEBUG] RAISE button clicked - showing raise UI")
             self.showing_raise_input = True
             self.raise_percentage = 0.0
         else:
@@ -540,9 +546,11 @@ class PygameGUI:
 
     def confirm_raise(self):
         """Confirm raise amount and execute"""
+        print(f"[DEBUG] confirm_raise called - raise_amount=${self.raise_amount}")
         self.showing_raise_input = False
         success = self.game.take_action(ActionType.RAISE, self.raise_amount)
 
+        print(f"[DEBUG] Raise action success={success}")
         if success:
             self.set_message(f"You: Raise to ${self.raise_amount}")
 
@@ -552,6 +560,7 @@ class PygameGUI:
 
     def update_raise_amount(self, percentage: float):
         """Update raise amount from slider"""
+        print(f"[DEBUG] update_raise_amount called - percentage={percentage:.2f}")
         self.raise_percentage = percentage
 
     def set_message(self, message: str, duration: int = 180):
