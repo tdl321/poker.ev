@@ -85,6 +85,9 @@ class PygameGUI:
         self.message = ""
         self.message_timer = 0
 
+        # Session score tracking (cumulative net gains/losses)
+        self.session_score = 0
+
         # Player position on table (positions around ellipse)
         self.player_positions = self._calculate_player_positions()
 
@@ -305,15 +308,27 @@ class PygameGUI:
             print(f"❌ Error saving in-progress hand: {e}")
 
     def _track_hand_end(self, state: dict):
-        """Track when a hand ends and save to Pinecone"""
-        if not self.enable_hand_history or not self.hand_history:
-            return
-
+        """Track when a hand ends, update session score, and save to Pinecone"""
         # Debug: Log state transitions
         current_active = state['hand_active']
         if self._last_hand_active_state is not None and self._last_hand_active_state != current_active:
             print(f"🔄 Hand state transition: {self._last_hand_active_state} -> {current_active}")
         self._last_hand_active_state = current_active
+
+        # Hand ended if it was active and now isn't
+        if not state['hand_active'] and self._last_hand_active_state:
+            # Update session score (works even if hand_history is disabled)
+            if self.player_starting_chips.get(0) is not None:
+                player_0_end = state.get('players', [{}])[0]
+                start_chips = self.player_starting_chips.get(0, 1000)
+                end_chips = player_0_end.get('chips', start_chips)
+                profit = end_chips - start_chips
+                self.session_score += profit
+                print(f"💰 Hand profit: ${profit:+d} | Session Score: ${self.session_score:+d}")
+
+        # Early return if hand history is disabled
+        if not self.enable_hand_history or not self.hand_history:
+            return
 
         # Hand ended if it was active and now isn't, and we have a tracked hand
         if not state['hand_active'] and self.current_hand_id is not None:
@@ -780,6 +795,9 @@ class PygameGUI:
         if self.message:
             self.render_message()
 
+        # Draw session score (top left corner)
+        self.render_session_score()
+
     def render_table(self):
         """Draw the poker table"""
         center_x, center_y = self.window_size[0] // 2, self.window_size[1] // 2
@@ -1008,6 +1026,35 @@ class PygameGUI:
         pygame.draw.rect(self.screen, self.GOLD_COLOR, bg_rect, 2)
 
         self.screen.blit(text, text_rect)
+
+    def render_session_score(self):
+        """Render session score in top left corner"""
+        # Format score with + or - sign
+        score_text = f"${self.session_score:+d}"
+
+        # Choose color based on positive/negative
+        if self.session_score > 0:
+            color = (0, 255, 0)  # Green for profit
+        elif self.session_score < 0:
+            color = (255, 100, 100)  # Red for loss
+        else:
+            color = (200, 200, 200)  # Gray for break-even
+
+        # Render text
+        score_surface = self.font_large.render(score_text, True, color)
+
+        # Position in top left with padding
+        padding = 20
+        x = padding
+        y = padding
+
+        # Background for better visibility
+        bg_rect = pygame.Rect(x - 10, y - 5, score_surface.get_width() + 20, score_surface.get_height() + 10)
+        pygame.draw.rect(self.screen, (0, 0, 0, 180), bg_rect)
+        pygame.draw.rect(self.screen, color, bg_rect, 2)
+
+        # Draw score
+        self.screen.blit(score_surface, (x, y))
 
     def _complete_board_for_showdown(self, state: dict) -> list:
         """
