@@ -1,7 +1,7 @@
 """Quick test to determine the actual state dimension from PokerEnv."""
 
 if __name__ == "__main__":
-    from poker_model_env import PokerEnv
+    from pokernew import PokerEnv
 
     # Create a simple environment
     env = PokerEnv(num_players=3, endowment=1000, small_blind=10, big_blind=20)

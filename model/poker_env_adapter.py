@@ -1,5 +1,5 @@
 import numpy as np
-from poker_model_env import PokerEnv
+from pokernew import PokerEnv
 
 
 class PokerEnvAdapter:

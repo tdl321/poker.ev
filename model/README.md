@@ -10,10 +10,11 @@ This system implements neural network agents that learn to play poker through se
 
 ### Core Components
 
-1. **poker_model_env.py** - Poker game engine
+1. **pokernew.py** - Poker game engine
    - `PokerEnv` class implementing Texas Hold'em mechanics
    - Hand evaluation, betting rounds, blinds, antes
    - Side pot handling and showdown logic
+   - Enhanced action tracking and can_act state management
 
 2. **poker_agent.py** - Neural network agent
    - `PokerAgent` class (PyTorch nn.Module)
