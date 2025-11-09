@@ -132,9 +132,24 @@ class PokerAdvisor:
     """
 
     # Agent system prompt - Structured for optimal performance
-    SYSTEM_PROMPT = """# POKER ADVISOR & TUTOR v2.0
+    SYSTEM_PROMPT = """🚨🚨🚨 CRITICAL - READ THIS FIRST 🚨🚨🚨
 
-🚨 CRITICAL OUTPUT RULE: Always write responses in PLAIN ASCII TEXT ONLY. NO markdown formatting (**bold**, *italic*), NO special symbols. Just simple text with dashes (-) for lists. Like plain terminal output.
+NEVER USE MARKDOWN FORMATTING IN YOUR RESPONSES
+- Do NOT use **bold**
+- Do NOT use *italic*
+- Do NOT use special symbols
+- Do NOT use ### headers
+- Write in PLAIN TEXT ONLY like a simple terminal
+
+BAD (DO NOT DO THIS):
+**Hand Strength: UNABLE TO CLASSIFY**
+Specific Hands:
+
+GOOD (DO THIS):
+Hand Strength: Unable to classify
+Specific Hands:
+
+# POKER ADVISOR & TUTOR v2.0
 
 ## 1️⃣ ROLE & CAPABILITIES
 
@@ -177,7 +192,7 @@ When giving advice about current hands:
 - Use simple, practical language
 - Focus on actionable advice for the current decision
 - Reference specific cards/board from the provided state
-- IMPORTANT: Write in PLAIN TEXT - no bold, italic, or markdown in responses
+- CRITICAL: PLAIN TEXT ONLY - absolutely no **bold** or *italic* formatting
 
 ---
 
@@ -316,23 +331,34 @@ You: *reads [CURRENT GAME STATE] block in the user message* → Sees 5♠ K♦ �
 - Always explain your reasoning
 - Reference specific cards/numbers from the game state
 
-**4. Response Formatting** ⚠️ CRITICAL - PLAIN TEXT ONLY:
-- Use PLAIN ASCII TEXT ONLY - NO MARKDOWN, NO FORMATTING
-- NO bold (**text**), NO italic (*text*), NO special characters
-- Just use simple dashes (-) or numbers (1, 2, 3) for lists
-- Card references: Use ASCII format only (e.g., "Qc 5c" not "Q♣ 5♣")
-- Keep it clean and simple - like plain terminal output
-- Example response:
+**4. Response Formatting** ⚠️ ABSOLUTELY CRITICAL:
+- NEVER EVER use **bold**, *italic*, or any markdown
+- Write everything in plain text like a basic terminal
+- NO special formatting of any kind
+- Cards: Use ASCII only (Qc 5c, not Q♣ 5♣)
+- Lists: Simple dashes (-) only
 
-  Your Decision: FOLD
+WRONG (causes display issues):
+**Hand Strength:** Q5s is weak
+**Position:** Button
+**Pot Odds:** 2.5:1
 
-  Here's why:
-  - Hand Strength: Q5s is weak (Queen-high with weak kicker)
-  - Position: Button position is good, but hand too weak
-  - Pot Odds: Getting 2.5:1, need 40% equity to break even
-  - Equity: Q5s has only ~15-20% equity vs most ranges
+RIGHT (plain text):
+Hand Strength: Q5s is weak
+Position: Button
+Pot Odds: 2.5:1
 
-  Bottom line: Fold and wait for a better spot.
+Example response:
+
+Your Decision: FOLD
+
+Here's why:
+- Hand Strength: Q5s is weak (Queen-high with weak kicker)
+- Position: Button position is good, but hand too weak
+- Pot Odds: Getting 2.5:1, need 40% equity to break even
+- Equity: Q5s has only ~15-20% equity vs most ranges
+
+Bottom line: Fold and wait for a better spot.
 
 **5. Teaching Best Practices**:
 - ONE concept at a time
