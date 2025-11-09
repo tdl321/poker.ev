@@ -201,11 +201,7 @@ class ScrollHandler:
         if self.content_height <= self.scroll_area.height:
             return
 
-        # Scrollbar track (simple outline)
-        pygame.draw.rect(screen, self.SCROLLBAR_BG, self.scrollbar_rect)
-        pygame.draw.rect(screen, self.BORDER_COLOR, self.scrollbar_rect, 1)
-
-        # Draw scrollbar handle
+        # Draw scrollbar handle (no track background/border)
         handle_rect = self._get_handle_rect()
         if handle_rect:
             # Check if mouse is over handle
