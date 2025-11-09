@@ -17,12 +17,28 @@ class GameContextProvider:
     that the LLM can understand and analyze.
     """
 
-    # Card suit symbols
-    SUIT_SYMBOLS = {
+    # Card suit symbols - Unicode (default, best for display)
+    SUIT_SYMBOLS_UNICODE = {
         1: '♠',  # Spades
         2: '♥',  # Hearts
         4: '♦',  # Diamonds
         8: '♣'   # Clubs
+    }
+
+    # Card suit symbols - ASCII (single letter, for compatibility)
+    SUIT_SYMBOLS_ASCII = {
+        1: 's',  # Spades
+        2: 'h',  # Hearts
+        4: 'd',  # Diamonds
+        8: 'c'   # Clubs
+    }
+
+    # Card suit symbols - Text (full name, for clarity)
+    SUIT_SYMBOLS_TEXT = {
+        1: ' of spades',
+        2: ' of hearts',
+        4: ' of diamonds',
+        8: ' of clubs'
     }
 
     # Rank symbols (0-indexed to match texasholdem library)
@@ -30,6 +46,13 @@ class GameContextProvider:
         12: 'A', 11: 'K', 10: 'Q', 9: 'J', 8: 'T',
         7: '9', 6: '8', 5: '7', 4: '6', 3: '5',
         2: '4', 1: '3', 0: '2'
+    }
+
+    # Rank names for text format
+    RANK_NAMES_TEXT = {
+        12: 'Ace', 11: 'King', 10: 'Queen', 9: 'Jack', 8: 'Ten',
+        7: 'Nine', 6: 'Eight', 5: 'Seven', 4: 'Six', 3: 'Five',
+        2: 'Four', 1: 'Three', 0: 'Two'
     }
 
     # Position names (for 6-player game)
@@ -42,14 +65,24 @@ class GameContextProvider:
         5: "Cutoff (CO)"
     }
 
-    def __init__(self, game: PokerGame):
+    def __init__(self, game: PokerGame, card_format: str = 'unicode'):
         """
         Initialize context provider
 
         Args:
             game: PokerGame instance
+            card_format: Format for card display - 'unicode' (A♠), 'ascii' (As), or 'text' (Ace of spades)
         """
         self.game = game
+        self.card_format = card_format
+
+        # Set suit symbols based on format
+        if card_format == 'ascii':
+            self.suit_symbols = self.SUIT_SYMBOLS_ASCII
+        elif card_format == 'text':
+            self.suit_symbols = self.SUIT_SYMBOLS_TEXT
+        else:  # default to unicode
+            self.suit_symbols = self.SUIT_SYMBOLS_UNICODE
 
     def card_to_string(self, card: Card) -> str:
         """
@@ -59,11 +92,21 @@ class GameContextProvider:
             card: texasholdem Card object
 
         Returns:
-            String like "A♠" or "K♥"
+            String in selected format:
+            - unicode: "A♠", "K♥"
+            - ascii: "As", "Kh"
+            - text: "Ace of spades", "King of hearts"
         """
-        rank = self.RANK_SYMBOLS.get(card.rank, str(card.rank))
-        suit = self.SUIT_SYMBOLS.get(card.suit, '?')
-        return f"{rank}{suit}"
+        if self.card_format == 'text':
+            # Full text format: "Ace of spades"
+            rank_name = self.RANK_NAMES_TEXT.get(card.rank, str(card.rank))
+            suit_name = self.suit_symbols.get(card.suit, ' of unknown')
+            return f"{rank_name}{suit_name}"
+        else:
+            # Compact format (unicode or ascii): "A♠" or "As"
+            rank = self.RANK_SYMBOLS.get(card.rank, str(card.rank))
+            suit = self.suit_symbols.get(card.suit, '?')
+            return f"{rank}{suit}"
 
     def cards_to_string(self, cards: List[Card]) -> str:
         """
@@ -73,9 +116,17 @@ class GameContextProvider:
             cards: List of Card objects
 
         Returns:
-            String like "A♠ K♥" or "Q♦ Q♣"
+            String in selected format:
+            - unicode: "A♠ K♥"
+            - ascii: "As Kh"
+            - text: "Ace of spades, King of hearts"
         """
-        return ' '.join(self.card_to_string(card) for card in cards)
+        if self.card_format == 'text':
+            # Comma-separated for text format
+            return ', '.join(self.card_to_string(card) for card in cards)
+        else:
+            # Space-separated for compact formats
+            return ' '.join(self.card_to_string(card) for card in cards)
 
     def get_position_name(self, player_id: int, dealer_id: int) -> str:
         """
