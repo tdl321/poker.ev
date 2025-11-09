@@ -68,17 +68,38 @@ class NeuralAgentAdapter:
 
         # Load trained weights
         self.weights_loaded = False
+        from pathlib import Path
+        model_path_obj = Path(model_path).resolve()
+
         try:
-            self.model.load_state_dict(torch.load(model_path, map_location='cpu'))
+            if not model_path_obj.exists():
+                raise FileNotFoundError(f"Model file does not exist: {model_path_obj}")
+
+            # Load the model weights
+            state_dict = torch.load(str(model_path_obj), map_location='cpu', weights_only=True)
+
+            # Verify state dict has expected keys
+            expected_keys = ['fc1.weight', 'fc1.bias', 'fc2.weight', 'fc2.bias',
+                           'action_head.weight', 'action_head.bias',
+                           'raise_amount_head.weight', 'raise_amount_head.bias',
+                           'value_head.weight', 'value_head.bias']
+            missing_keys = set(expected_keys) - set(state_dict.keys())
+            if missing_keys:
+                print(f"⚠️  Warning: Missing keys in state dict: {missing_keys}")
+
+            self.model.load_state_dict(state_dict)
             self.model.eval()  # Set to evaluation mode
             self.weights_loaded = True
-            print(f"✓ Loaded neural agent: {model_path} (risk_profile={risk_profile})")
-        except FileNotFoundError:
-            print(f"⚠ Warning: Model file not found: {model_path}")
-            print(f"   Neural agent will use untrained weights for player {player_id}")
+            print(f"✅ Loaded pretrained weights: {model_path_obj.name}")
+        except FileNotFoundError as e:
+            print(f"❌ Model file not found: {model_path_obj}")
+            print(f"   Neural agent for player {player_id} will use UNTRAINED weights")
+            print(f"   Expected location: {model_path_obj}")
         except Exception as e:
-            print(f"⚠ Warning: Error loading model {model_path}: {e}")
-            print(f"   Neural agent will use untrained weights for player {player_id}")
+            print(f"❌ Error loading model {model_path_obj.name}: {e}")
+            print(f"   Neural agent for player {player_id} will use UNTRAINED weights")
+            import traceback
+            traceback.print_exc()
 
     def __call__(self, game: TexasHoldEm) -> Tuple[ActionType, int]:
         """
