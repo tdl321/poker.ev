@@ -40,7 +40,8 @@ class PygameGUI:
     BUTTON_HOVER = (60, 60, 60)
 
     def __init__(self, game: PokerGame, agent_manager: AgentManager,
-                 window_size: tuple = (1400, 900), enable_chat: bool = True):
+                 window_size: tuple = (1400, 900), enable_chat: bool = True,
+                 enable_hand_history: bool = True):
         """
         Initialize the Pygame GUI
 
@@ -49,6 +50,7 @@ class PygameGUI:
             agent_manager: AgentManager for AI players
             window_size: (width, height) of the window
             enable_chat: Enable AI poker advisor chat panel
+            enable_hand_history: Enable automatic hand saving to Pinecone (default: True)
         """
         pygame.init()
 
@@ -86,6 +88,17 @@ class PygameGUI:
 
         # Player position on table (positions around ellipse)
         self.player_positions = self._calculate_player_positions()
+
+        # Hand history tracking (if enabled)
+        self.enable_hand_history = enable_hand_history
+        self.hand_history = None
+        self.current_hand_id = None
+        self.hand_start_state = None
+        self.player_starting_chips = {}
+        self._last_hand_active_state = None  # Track state changes
+
+        if self.enable_hand_history:
+            self._init_hand_history()
 
     def _init_chat_panel(self):
         """Initialize the AI poker advisor chat panel"""
@@ -151,6 +164,146 @@ class PygameGUI:
 
         thread = threading.Thread(target=stream_response, daemon=True)
         thread.start()
+
+    def _init_hand_history(self):
+        """Initialize hand history for Pinecone storage"""
+        try:
+            from poker_ev.memory.hand_history import HandHistory
+            self.hand_history = HandHistory()
+            print("✅ Hand history initialized - hands will be saved to Pinecone")
+        except Exception as e:
+            print(f"⚠️  Hand history unavailable: {e}")
+            print("   Hands will not be saved. Set PINECONE_API_KEY in .env to enable.")
+            self.enable_hand_history = False
+            self.hand_history = None
+
+    def _format_card(self, card_obj) -> str:
+        """Format a card object to readable string"""
+        rank_map = {
+            0: '2', 1: '3', 2: '4', 3: '5', 4: '6', 5: '7', 6: '8',
+            7: '9', 8: 'T', 9: 'J', 10: 'Q', 11: 'K', 12: 'A'
+        }
+        suit_map = {1: '♠', 2: '♥', 4: '♦', 8: '♣'}
+
+        if hasattr(card_obj, 'rank') and hasattr(card_obj, 'suit'):
+            return f"{rank_map.get(card_obj.rank, '?')}{suit_map.get(card_obj.suit, '?')}"
+        return str(card_obj)
+
+    def _track_hand_start(self, state: dict):
+        """Track when a new hand starts"""
+        if not self.enable_hand_history or not self.hand_history:
+            return
+
+        # Only track if hand is active and we haven't tracked this hand yet
+        if state['hand_active'] and self.current_hand_id is None:
+            import time
+            from datetime import datetime
+
+            self.current_hand_id = f"hand_{int(time.time())}"
+            self.hand_start_state = state.copy()
+
+            # Save starting chips for profit calculation
+            self.player_starting_chips = {
+                i: p['chips'] for i, p in enumerate(state['players'])
+            }
+
+            print(f"\n📋 Hand started: {self.current_hand_id}")
+
+    def _track_hand_end(self, state: dict):
+        """Track when a hand ends and save to Pinecone"""
+        if not self.enable_hand_history or not self.hand_history:
+            return
+
+        # Debug: Log state transitions
+        current_active = state['hand_active']
+        if self._last_hand_active_state is not None and self._last_hand_active_state != current_active:
+            print(f"🔄 Hand state transition: {self._last_hand_active_state} -> {current_active}")
+        self._last_hand_active_state = current_active
+
+        # Hand ended if it was active and now isn't, and we have a tracked hand
+        if not state['hand_active'] and self.current_hand_id is not None:
+            from datetime import datetime
+
+            print(f"\n🏁 Hand ended: {self.current_hand_id}")
+            print(f"💾 Saving hand to Pinecone...")
+
+            # Prepare hand data
+            hand_data = self._prepare_hand_data(state)
+
+            # Log what we're saving
+            print(f"   Cards: {', '.join(hand_data['your_cards']) if hand_data['your_cards'] else 'None'}")
+            print(f"   Board: {', '.join(hand_data['board']) if hand_data['board'] else 'None'}")
+            print(f"   Outcome: {hand_data['outcome']}")
+            print(f"   Profit: ${hand_data['profit']:+d}")
+
+            # Save to Pinecone
+            try:
+                success = self.hand_history.save_hand(hand_data)
+                if success:
+                    print(f"✅ Hand saved successfully!")
+                else:
+                    print(f"⚠️  Failed to save hand")
+            except Exception as e:
+                print(f"❌ Error saving hand: {e}")
+                import traceback
+                traceback.print_exc()
+
+            # Reset hand tracking
+            self.current_hand_id = None
+            self.hand_start_state = None
+
+    def _prepare_hand_data(self, end_state: dict) -> dict:
+        """Prepare hand data for Pinecone storage"""
+        from datetime import datetime
+        import time
+
+        start_state = self.hand_start_state or {}
+
+        # Get player 0 data
+        player_0_start = start_state.get('players', [{}])[0]
+        player_0_end = end_state.get('players', [{}])[0]
+
+        # Format cards
+        your_cards = []
+        if player_0_start.get('hand'):
+            your_cards = [self._format_card(c) for c in player_0_start['hand']]
+
+        board_cards = []
+        if end_state.get('board'):
+            board_cards = [self._format_card(c) for c in end_state['board']]
+
+        # Calculate profit
+        start_chips = self.player_starting_chips.get(0, 1000)
+        end_chips = player_0_end.get('chips', start_chips)
+        profit = end_chips - start_chips
+
+        # Determine outcome
+        outcome = 'unknown'
+        if player_0_end.get('folded'):
+            outcome = 'folded'
+        elif profit > 0:
+            outcome = 'won'
+        elif profit < 0:
+            outcome = 'lost'
+        else:
+            outcome = 'push'
+
+        # Build hand data
+        hand_data = {
+            'hand_id': self.current_hand_id,
+            'timestamp': datetime.now().isoformat(),
+            'your_cards': your_cards,
+            'board': board_cards,
+            'pot': end_state.get('pot', 0),
+            'phase': str(end_state.get('hand_phase', 'unknown')),
+            'position': 'Button',  # Simplified - could be enhanced
+            'outcome': outcome,
+            'profit': profit,
+            'actions_summary': f"Hand completed at {datetime.now().strftime('%H:%M:%S')}",
+            'notes': f"Poker.ev game hand"
+        }
+
+        return hand_data
 
     def load_assets(self):
         """Load all assets from pyker"""
@@ -219,13 +372,22 @@ class PygameGUI:
         running = True
 
         while running and self.game.is_game_running():
+            # Get current game state BEFORE potentially starting new hand
+            state = self.game.get_game_state()
+
+            # Track hand lifecycle for Pinecone storage
+            # IMPORTANT: Check for hand end BEFORE starting new hand
+            self._track_hand_end(state)
+
             # Start new hand if needed
             if not self.game.is_hand_running():
                 self.game.start_new_hand()
                 self.set_message("New hand dealt!")
+                # Get updated state after starting new hand
+                state = self.game.get_game_state()
 
-            # Get current game state
-            state = self.game.get_game_state()
+            # Track hand start (for new hands)
+            self._track_hand_start(state)
 
             # Handle events
             for event in pygame.event.get():
