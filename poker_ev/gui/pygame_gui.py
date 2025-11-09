@@ -100,12 +100,12 @@ class PygameGUI:
             self.window_size[1]
         )
 
-        # Create chat panel with retro fonts
+        # Create chat panel with FindersKeepers retro fonts
         self.chat_panel = ChatPanel(
             panel_rect=chat_panel_rect,
-            font_small=self.font_small,
-            font_medium=self.font_medium,
-            font_large=self.font_large,
+            font_small=self.chat_font_small,
+            font_medium=self.chat_font_medium,
+            font_large=self.chat_font_large,
             on_message_send=self._handle_chat_message
         )
 
@@ -186,6 +186,8 @@ class PygameGUI:
 
         # Load fonts
         pygame.font.init()
+
+        # Main game UI fonts (Pixeloid)
         font_path = os.path.join(fonts_dir, "PixeloidMono-1G8ae.ttf")
         if os.path.exists(font_path):
             self.font_small = pygame.font.Font(font_path, 14)
@@ -196,6 +198,24 @@ class PygameGUI:
             self.font_small = pygame.font.Font(None, 20)
             self.font_medium = pygame.font.Font(None, 28)
             self.font_large = pygame.font.Font(None, 42)
+
+        # Chat UI fonts (FindersKeepers - Geneva 9pt recreation)
+        finders_path = os.path.join(fonts_dir, "FindersKeepers.ttf")
+        if os.path.exists(finders_path):
+            self.chat_font_small = pygame.font.Font(finders_path, 9)
+            self.chat_font_medium = pygame.font.Font(finders_path, 9)
+            self.chat_font_large = pygame.font.Font(finders_path, 12)
+        else:
+            # Fallback to Pixeloid for chat
+            if os.path.exists(font_path):
+                self.chat_font_small = pygame.font.Font(font_path, 14)
+                self.chat_font_medium = pygame.font.Font(font_path, 18)
+                self.chat_font_large = pygame.font.Font(font_path, 28)
+            else:
+                # Final fallback
+                self.chat_font_small = pygame.font.Font(None, 18)
+                self.chat_font_medium = pygame.font.Font(None, 24)
+                self.chat_font_large = pygame.font.Font(None, 36)
 
     def _calculate_player_positions(self):
         """Calculate positions for players around the table"""
@@ -224,10 +244,14 @@ class PygameGUI:
             # Get current game state (needed for both normal flow and game over screen)
             state = self.game.get_game_state()
 
+            # Continuously capture state during active hands (for game over screen)
+            if state['hand_active']:
+                self.final_game_state = state
+
             # Check if player is busted
             if not self.game_over and self.game.is_player_busted():
                 self.game_over = True
-                self.final_game_state = state  # Capture the final state
+                # final_game_state already contains last active state with visible cards
                 self.set_message("Game Over - You're out of chips!", duration=9999)
 
             # If game over, just show the game over screen
