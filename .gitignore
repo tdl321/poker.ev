@@ -45,3 +45,9 @@ hand_history/
 
 # Environment variables
 .env
+
+# PyTorch model files
+*.pt
+
+# Training logs
+*.log

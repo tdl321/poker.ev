@@ -162,37 +162,29 @@ trainer = MultiAgentPokerTrainer(...)
 trainer.load_agents(filename_prefix="poker_agent")
 ```
 
-## Example Output
+## Training Results (500 Episodes)
+
+**Latest Training Run:** November 9, 2025
 
 ```
-Multi-Agent Poker Neural Network Training
-============================================================
-Configuration:
-  Players: 3
-  Endowment: 1000
-  State Dimension: 44
-  Hidden Dimension: 128
-  Learning Rate: 0.001
-  Episodes: 500
-============================================================
-
-Episode 50/500
-------------------------------------------------------------
-  Agent 0 (neutral ): Avg Reward =   120.50, Last Reward =    150
-  Agent 1 (averse  ): Avg Reward =   -45.20, Last Reward =    -80
-  Agent 2 (seeking ): Avg Reward =   -75.30, Last Reward =    -70
-
-...
-
-Training complete!
-============================================================
-
 Final Performance (last 100 episodes):
 ------------------------------------------------------------
-  Agent 0 (neutral ): Avg =   150.25, Total =      75125
-  Agent 1 (averse  ): Avg =   -50.10, Total =     -25050
-  Agent 2 (seeking ): Avg =  -100.15, Total =     -50075
+  Agent 0 (neutral ): Avg =     1.80, Total =        861
+  Agent 1 (averse  ): Avg =     9.30, Total =       4980
+  Agent 2 (seeking ): Avg =    18.90, Total =       9159
 ```
+
+**Key Findings:**
+- 🏆 **Risk-seeking agent performed best** (18.90 avg reward)
+- 📊 Risk-averse agent showed consistent, stable performance
+- ⚠️ Risk-neutral agent underperformed other profiles
+
+**Trained Models Saved:**
+- `poker_agent_0_neutral.pt` (95 KB)
+- `poker_agent_1_averse.pt` (95 KB)
+- `poker_agent_2_seeking.pt` (95 KB)
+
+See `TRAINING_RESULTS.md` for detailed analysis.
 
 ## Key Features
 
