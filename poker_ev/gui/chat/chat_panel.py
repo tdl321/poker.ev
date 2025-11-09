@@ -107,6 +107,10 @@ class ChatPanel:
         self.is_waiting_response = False
         self.typing_animation_frame = 0
 
+        # Streaming state
+        self.streaming_message_content = ""
+        self.is_streaming = False
+
         # Welcome message
         self._add_system_message(
             "Poker Advisor Ready!\n\n"
@@ -176,6 +180,55 @@ class ChatPanel:
         """
         self.add_message('assistant', response)
         self.is_waiting_response = False
+
+    def start_streaming_message(self):
+        """Start a new streaming message from AI"""
+        self.streaming_message_content = ""
+        self.is_streaming = True
+        self.is_waiting_response = False
+
+        # Add placeholder message that will be updated
+        message = {
+            'role': 'assistant',
+            'content': '',
+            'timestamp': datetime.now().isoformat(),
+            'metadata': {'streaming': True}
+        }
+        self.messages.append(message)
+
+        # Update scroll
+        total_height = self.message_renderer.calculate_messages_height(self.messages)
+        self.scroll_handler.set_content_height(total_height)
+
+    def append_to_streaming_message(self, chunk: str):
+        """
+        Append chunk to the current streaming message
+
+        Args:
+            chunk: Text chunk from streaming API
+        """
+        if not self.is_streaming or not self.messages:
+            return
+
+        # Update the last message (streaming message)
+        self.streaming_message_content += chunk
+        self.messages[-1]['content'] = self.streaming_message_content
+
+        # Update scroll
+        total_height = self.message_renderer.calculate_messages_height(self.messages)
+        self.scroll_handler.set_content_height(total_height)
+
+        # Auto-scroll to bottom to show new content
+        self.scroll_handler.scroll_to_bottom()
+
+    def finalize_streaming_message(self):
+        """Finalize the streaming message"""
+        if self.is_streaming and self.messages:
+            # Mark message as complete
+            self.messages[-1]['metadata']['streaming'] = False
+
+        self.is_streaming = False
+        self.streaming_message_content = ""
 
     def handle_event(self, event: pygame.event.Event) -> bool:
         """

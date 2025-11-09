@@ -194,9 +194,11 @@ When to use tools:
             embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
             # Create LangChain Pinecone vector store
+            # IMPORTANT: text_key must match the field name in Pinecone metadata
             pinecone_store = PineconeVectorStore(
                 index_name=index_name,
-                embedding=embeddings
+                embedding=embeddings,
+                text_key="content"  # Our vectors use 'content' field, not 'text'
             )
 
             # Wrap in our compatibility wrapper
@@ -334,7 +336,7 @@ When to use tools:
         use_rag: bool = True
     ) -> Generator[str, None, None]:
         """
-        Get poker advice with streaming response
+        Get poker advice with TRUE streaming response from DeepSeek
 
         Args:
             user_query: User's question
@@ -342,20 +344,33 @@ When to use tools:
             use_rag: Whether to use RAG (unused - agent uses search_poker_knowledge tool)
 
         Yields:
-            Text chunks as they arrive from the agent
+            Text chunks as they arrive from DeepSeek API in real-time
         """
         try:
-            # Use non-streaming get_advice and simulate streaming by yielding words
-            # Agent streaming with tools is complex - this provides better UX
-            advice = self.get_advice(user_query, game_state, use_rag)
-
-            # Yield word by word for streaming effect
-            words = advice.split()
-            for i, word in enumerate(words):
-                if i < len(words) - 1:
-                    yield word + " "
-                else:
-                    yield word
+            # Stream response from agent using LangChain's streaming API
+            for chunk in self.agent.stream({
+                "messages": [{"role": "user", "content": user_query}]
+            }):
+                # Extract text content from streaming chunks
+                if isinstance(chunk, dict):
+                    # Handle agent output
+                    if "agent" in chunk and "messages" in chunk["agent"]:
+                        for message in chunk["agent"]["messages"]:
+                            if hasattr(message, "content") and message.content:
+                                yield message.content
+                            elif isinstance(message, dict) and "content" in message:
+                                yield message["content"]
+                    # Handle direct output
+                    elif "messages" in chunk:
+                        for message in chunk["messages"]:
+                            if hasattr(message, "content") and message.content:
+                                yield message.content
+                            elif isinstance(message, dict) and "content" in message:
+                                yield message["content"]
+                elif hasattr(chunk, "content"):
+                    # Direct message chunk
+                    if chunk.content:
+                        yield chunk.content
         except Exception as e:
             logger.error(f"Error streaming advice: {e}")
             yield f"Sorry, I encountered an error: {str(e)}"

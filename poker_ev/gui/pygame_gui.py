@@ -135,7 +135,7 @@ class PygameGUI:
 
     def _handle_chat_message(self, message: str):
         """
-        Handle user chat message with streaming response
+        Handle user chat message with TRUE streaming response
 
         Args:
             message: User's message
@@ -153,13 +153,16 @@ class PygameGUI:
                 # Set typing indicator
                 self.chat_panel.set_typing(True)
 
-                # Collect full response while streaming
-                full_response = ""
-                for chunk in self.poker_advisor.get_advice_stream(message, game_state):
-                    full_response += chunk
+                # Start a streaming message (will be updated as chunks arrive)
+                self.chat_panel.start_streaming_message()
 
-                # Add complete response to chat
-                self.chat_panel.add_ai_response(full_response)
+                # Stream chunks from DeepSeek API and update progressively
+                for chunk in self.poker_advisor.get_advice_stream(message, game_state):
+                    if chunk:  # Only add non-empty chunks
+                        self.chat_panel.append_to_streaming_message(chunk)
+
+                # Finalize the streaming message
+                self.chat_panel.finalize_streaming_message()
 
             except Exception as e:
                 self.chat_panel.add_ai_response(f"Error: {str(e)}")
