@@ -309,15 +309,20 @@ class PygameGUI:
 
     def _track_hand_end(self, state: dict):
         """Track when a hand ends, update session score, and save to Pinecone"""
-        # Debug: Log state transitions
+        # Check current state
         current_active = state['hand_active']
+
+        # Detect hand end transition: was active (True), now inactive (False)
+        hand_just_ended = (self._last_hand_active_state == True and current_active == False)
+
+        # Debug: Log state transitions
         if self._last_hand_active_state is not None and self._last_hand_active_state != current_active:
             print(f"🔄 Hand state transition: {self._last_hand_active_state} -> {current_active}")
-        self._last_hand_active_state = current_active
+            if hand_just_ended:
+                print(f"✅ Hand end detected!")
 
-        # Hand ended if it was active and now isn't
-        if not state['hand_active'] and self._last_hand_active_state:
-            # Update session score (works even if hand_history is disabled)
+        # Update session score when hand ends (works even if hand_history is disabled)
+        if hand_just_ended:
             if self.player_starting_chips.get(0) is not None:
                 player_0_end = state.get('players', [{}])[0]
                 start_chips = self.player_starting_chips.get(0, 1000)
@@ -326,12 +331,15 @@ class PygameGUI:
                 self.session_score += profit
                 print(f"💰 Hand profit: ${profit:+d} | Session Score: ${self.session_score:+d}")
 
+        # Update tracking state for next iteration
+        self._last_hand_active_state = current_active
+
         # Early return if hand history is disabled
         if not self.enable_hand_history or not self.hand_history:
             return
 
         # Hand ended if it was active and now isn't, and we have a tracked hand
-        if not state['hand_active'] and self.current_hand_id is not None:
+        if hand_just_ended and self.current_hand_id is not None:
             from datetime import datetime
 
             print(f"\n🏁 Hand ended: {self.current_hand_id}")
