@@ -1,0 +1,9 @@
+# Ignore music files (can be large)
+*.mp3
+*.ogg
+*.wav
+*.flac
+*.m4a
+
+# Keep README
+!README.md

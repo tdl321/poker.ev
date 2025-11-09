@@ -91,6 +91,9 @@ class PygameGUI:
         # Winner tracking (for crown display)
         self.last_round_winner = None
 
+        # Player fold tracking (to continue game after player 0 folds)
+        self.player_has_folded = False
+
         # Player position on table (positions around ellipse)
         self.player_positions = self._calculate_player_positions()
 
@@ -120,6 +123,13 @@ class PygameGUI:
         self.chat_visible = True  # Chat panel visibility toggle
         if self.enable_chat:
             self._init_chat_panel()
+
+        # Background music
+        self.music_enabled = True
+        self.music_volume = 0.3  # Default 30% volume
+        self.volume_bar_rect = None  # Track volume bar position for interaction
+        self.dragging_volume = False  # Track if user is dragging volume slider
+        self._init_music()
 
     def _init_chat_panel(self):
         """Initialize the AI poker advisor chat panel"""
@@ -256,6 +266,9 @@ class PygameGUI:
         if state['hand_active'] and self.current_hand_id is None:
             import time
             from datetime import datetime
+
+            # Reset player fold tracking for new hand
+            self.player_has_folded = False
 
             self.current_hand_id = f"hand_{int(time.time())}"
             self.hand_start_state = state.copy()
@@ -677,6 +690,58 @@ class PygameGUI:
                 self.chat_font_medium = pygame.font.Font(None, 24)
                 self.chat_font_large = pygame.font.Font(None, 32)
 
+    def _init_music(self):
+        """Initialize and start background music"""
+        try:
+            # Initialize pygame mixer for music
+            pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
+
+            # Find music file in assets/music directory
+            music_dir = Path("poker_ev/assets/music")
+            music_file = None
+
+            if music_dir.exists():
+                # Look for any music file (mp3, ogg, wav)
+                for ext in ['.mp3', '.ogg', '.wav']:
+                    matching_files = list(music_dir.glob(f"*{ext}"))
+                    if matching_files:
+                        music_file = matching_files[0]  # Use first match
+                        break
+
+            if music_file and music_file.exists():
+                # Load and start music
+                pygame.mixer.music.load(str(music_file))
+                pygame.mixer.music.set_volume(self.music_volume)
+                pygame.mixer.music.play(-1)  # Loop indefinitely (-1)
+                print(f"🎵 Background music loaded: {music_file.name}")
+            else:
+                print(f"ℹ️  No background music found in {music_dir}")
+                print(f"   Add a file named 'background_music.mp3' (or .ogg, .wav) to enable music")
+                self.music_enabled = False
+
+        except Exception as e:
+            print(f"⚠️  Could not initialize music: {e}")
+            self.music_enabled = False
+
+    def set_music_volume(self, volume: float):
+        """
+        Set music volume
+
+        Args:
+            volume: Volume level (0.0 to 1.0)
+        """
+        if not self.music_enabled:
+            return
+
+        # Clamp volume to valid range
+        self.music_volume = max(0.0, min(1.0, volume))
+
+        # Update pygame mixer volume
+        try:
+            pygame.mixer.music.set_volume(self.music_volume)
+        except Exception as e:
+            print(f"⚠️  Could not set music volume: {e}")
+
     def _calculate_player_positions(self):
         """Calculate positions for players around the table"""
         positions = []
@@ -848,6 +913,9 @@ class PygameGUI:
         # Draw session score (top left corner)
         self.render_session_score()
 
+        # Draw volume indicator (top right corner)
+        self.render_volume_indicator()
+
     def render_table(self):
         """Draw the poker table"""
         center_x, center_y = self.window_size[0] // 2, self.window_size[1] // 2
@@ -933,8 +1001,8 @@ class PygameGUI:
             card_y = y - box_height//2 + 80
             for i, card in enumerate(player['hand']):
                 card_x = x - box_width//2 + 10 + i * 70
-                if is_human or self.game_over:
-                    # Show cards for human OR when game is over (reveal all cards)
+                if is_human or self.game_over or self.player_has_folded:
+                    # Show cards for human OR when game is over OR when player has folded (reveal all cards)
                     sprite = self.card_renderer.get_card_sprite(card, scale=(60, 84))
                 else:
                     # Show card back for AI during gameplay
@@ -1113,6 +1181,72 @@ class PygameGUI:
         # Draw score
         self.screen.blit(score_surface, (x, y))
 
+    def render_volume_indicator(self):
+        """Render music volume indicator in top right corner"""
+        if not self.music_enabled:
+            return
+
+        # Position in top right corner
+        padding = 20
+        indicator_width = 150
+        indicator_height = 30
+        x = self.window_size[0] - indicator_width - padding
+        y = padding
+
+        # Background
+        bg_rect = pygame.Rect(x - 10, y - 5, indicator_width + 20, indicator_height + 10)
+        pygame.draw.rect(self.screen, (0, 0, 0, 180), bg_rect)
+        pygame.draw.rect(self.screen, (150, 150, 150), bg_rect, 2)
+
+        # Speaker icon (simple triangular speaker)
+        speaker_x = x + 5
+        speaker_y = y + indicator_height // 2
+        speaker_size = 12
+
+        # Speaker body
+        pygame.draw.polygon(self.screen, (255, 255, 255), [
+            (speaker_x, speaker_y - speaker_size // 2),
+            (speaker_x + speaker_size, speaker_y - speaker_size),
+            (speaker_x + speaker_size, speaker_y + speaker_size),
+            (speaker_x, speaker_y + speaker_size // 2)
+        ])
+
+        # Sound waves (3 arcs)
+        wave_color = (200, 200, 200)
+        for i in range(3):
+            wave_x = speaker_x + speaker_size + 2 + (i * 3)
+            wave_radius = 3 + (i * 2)
+            pygame.draw.arc(self.screen, wave_color,
+                          (wave_x - wave_radius, speaker_y - wave_radius,
+                           wave_radius * 2, wave_radius * 2),
+                          -0.5, 0.5, 2)
+
+        # Volume bar
+        bar_x = speaker_x + 35
+        bar_y = y + 5
+        bar_width = 100
+        bar_height = 20
+
+        # Store volume bar rect for mouse interaction
+        self.volume_bar_rect = pygame.Rect(bar_x, bar_y, bar_width, bar_height)
+
+        # Check if mouse is hovering over volume bar
+        mouse_pos = pygame.mouse.get_pos()
+        is_hovering = self.volume_bar_rect.collidepoint(mouse_pos)
+
+        # Background bar (lighter when hovering)
+        bg_color = (70, 70, 70) if is_hovering else (50, 50, 50)
+        pygame.draw.rect(self.screen, bg_color, (bar_x, bar_y, bar_width, bar_height))
+
+        # Filled bar based on volume (neon green like poker advisor)
+        filled_width = int(bar_width * self.music_volume)
+        if filled_width > 0:
+            neon_green = (0, 255, 0)
+            pygame.draw.rect(self.screen, neon_green, (bar_x, bar_y, filled_width, bar_height))
+
+        # Border (neon green to match poker advisor)
+        pygame.draw.rect(self.screen, (0, 255, 0), (bar_x, bar_y, bar_width, bar_height), 1)
+
     def render_crown(self, x: int, y: int, size: int = 30):
         """
         Render a crown at the specified position
@@ -1285,11 +1419,17 @@ class PygameGUI:
             success = self.game.take_action(action, amount)
 
             if success:
+                # Track if player 0 folded
+                if action == ActionType.FOLD:
+                    self.player_has_folded = True
+                    self.set_message("You folded - watching remaining players...")
+
                 # SAVE POST-DECISION STATE
                 self._save_post_decision(action, amount)
 
-                action_str = self._action_to_string(action, amount)
-                self.set_message(f"You: {action_str}")
+                if action != ActionType.FOLD:
+                    action_str = self._action_to_string(action, amount)
+                    self.set_message(f"You: {action_str}")
 
     def confirm_raise(self):
         """Confirm raise amount and execute"""
@@ -1347,6 +1487,7 @@ class PygameGUI:
         self.message = ""
         self.message_timer = 0
         self.last_round_winner = None
+        self.player_has_folded = False
 
         # Start a new hand
         self.game.start_new_hand()
