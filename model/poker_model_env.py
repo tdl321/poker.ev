@@ -292,15 +292,25 @@ class PokerEnv:
         hand = self.hands[player_id]
         comm = self.community_cards
         """
-        state: length: 25 + 3(MAX_NUM_PLAYERS-2) = 46 | for MAX_NUM_PLAYERS >= 2
-        state[0]: 
+        state: Fixed length vector representing game state
+        Cards are padded to max 7 cards (2 hand + 5 community)
         """
-        state = [card[0] for card in hand + comm] + [card[1] for card in hand + comm] + [0]*(14 - len(hand + comm))
-        state += [player_id] + self.active_players + [0]*(MAX_NUM_PLAYERS - len(self.active_players))
-        state += [self.pot, self.current_bet[player_id]] + self.bets + [0]*(MAX_NUM_PLAYERS - len(self.bets))
-        state += self.money + [0]*(MAX_NUM_PLAYERS - len(self.money))
-        self.states += state
-        # print(len(state))
+        # Combine hand and community cards
+        all_cards = hand + comm
+
+        # Extract ranks and suits, pad to 7 cards total
+        ranks = [card[0] for card in all_cards] + [0] * (7 - len(all_cards))
+        suits = [card[1] for card in all_cards] + [0] * (7 - len(all_cards))
+
+        # Build state vector with fixed size
+        state = ranks + suits  # 7 + 7 = 14 elements
+        state += [player_id]  # 1 element
+        state += self.active_players + [0]*(MAX_NUM_PLAYERS - len(self.active_players))  # MAX_NUM_PLAYERS elements
+        state += [self.pot, self.current_bet[player_id]]  # 2 elements
+        state += self.bets + [0]*(MAX_NUM_PLAYERS - len(self.bets))  # MAX_NUM_PLAYERS elements
+        state += self.money + [0]*(MAX_NUM_PLAYERS - len(self.money))  # MAX_NUM_PLAYERS elements
+
+        # Total: 14 + 1 + 9 + 2 + 9 + 9 = 44 elements
         return np.array(state, dtype=np.float32)
     
     def show_state(self):
@@ -562,10 +572,11 @@ def play():
             break  # someone folded
     env.showdown()
 
-NUM_PLAYERS = 2
-ENDOWMENT = 1000
+if __name__ == "__main__":
+    NUM_PLAYERS = 2
+    ENDOWMENT = 1000
 
-env = PokerEnv(NUM_PLAYERS, ENDOWMENT)
-for hand in range(5):  # play 5 hands
-    print(f"\n=== HAND {hand+1} ===")
-    play()
+    env = PokerEnv(NUM_PLAYERS, ENDOWMENT)
+    for hand in range(5):  # play 5 hands
+        print(f"\n=== HAND {hand+1} ===")
+        play()
