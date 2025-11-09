@@ -349,6 +349,53 @@ class DecisionTracker:
             logger.error(f"Error finalizing hand decisions: {e}")
             return False
 
+    def get_recent_decisions(
+        self,
+        decision_type: str = 'post_decision',
+        limit: int = 10
+    ) -> List[Dict]:
+        """
+        Get most recent decisions sorted by timestamp (not similarity)
+
+        Args:
+            decision_type: 'pre_decision' or 'post_decision'
+            limit: Maximum number of decisions to return
+
+        Returns:
+            List of recent decisions sorted by timestamp (newest first)
+        """
+        try:
+            # Use a generic query to get decisions, then sort by timestamp
+            results = self.store.search(
+                query="poker decision",
+                filter_dict={"type": decision_type},
+                top_k=min(limit * 2, 100)  # Get more than needed for sorting
+            )
+
+            # Parse JSON fields
+            for result in results:
+                metadata = result.get('metadata', {})
+                for key in ['your_cards', 'board', 'previous_actions', 'opponents']:
+                    if key in metadata:
+                        try:
+                            metadata[key] = json.loads(metadata[key])
+                        except:
+                            pass
+                result['metadata'] = metadata
+
+            # Sort by timestamp (most recent first)
+            sorted_results = sorted(
+                results,
+                key=lambda x: x.get('metadata', {}).get('timestamp', ''),
+                reverse=True
+            )
+
+            return sorted_results[:limit]
+
+        except Exception as e:
+            logger.error(f"Error getting recent decisions: {e}")
+            return []
+
     def search_similar_decisions(
         self,
         query: str,

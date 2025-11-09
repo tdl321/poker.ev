@@ -183,7 +183,7 @@ class PokerEnv:
         self.deck = shuffled_deck()
         self.hands = []
         self.community_cards = []
-
+        
         self.active_players = [True] * num_players
         self.can_act = [True] * num_players
         self.num_players = num_players
@@ -207,7 +207,7 @@ class PokerEnv:
         self.result = [0] * num_players
 
         self.game_over = False
-
+        
         self.actions = f"Preflop:\n("
         self.active_players_str = []
 
@@ -226,7 +226,7 @@ class PokerEnv:
                 if self.money[i] < self.ante_amount:
                     print(f"Player {i+1} doesn't have enough for ante. Reloading stack (+{self.endowment}).")
                     self.money[i] += self.endowment  # reload bankroll
-
+                
                 ante_paid = min(self.money[i], self.ante_amount)
                 self.money[i] -= ante_paid
                 self.bets[i] += ante_paid
@@ -289,6 +289,7 @@ class PokerEnv:
         self.pot = 0
         self.community_cards = []
         self.rebuy()
+        self.rotate_positions()
         self.post_blinds_and_antes()
 
     def next_round(self):
@@ -307,7 +308,7 @@ class PokerEnv:
         elif len(self.community_cards) == 4:
             self.deck.pop()
             self.community_cards.append(self.deck.pop())
-
+        
         else:
             print(f"Invalid Number of Community Cards: {len(self.community_cards)}")
             sys.exit(1)
@@ -317,28 +318,17 @@ class PokerEnv:
         hand = self.hands[player_id]
         comm = self.community_cards
         """
-        state: Fixed length vector representing game state (44 dimensions)
-        Cards are padded to max 7 cards (2 hand + 5 community)
-        Compatible with neural network agents expecting 44-dim input
+        state: length: 28 + 3(MAX_NUM_PLAYERS-2) = 46 | for MAX_NUM_PLAYERS >= 2
+
         """
-        # Combine hand and community cards
-        all_cards = hand + comm
+        state = [card[0] for card in hand + comm] + [card[1] for card in hand + comm] + [0]*(14 - len(hand + comm))
+        state += [player_id] + [self.dealer_position] + [self.big_blind_amount] + [self.small_blind_amount] + self.active_players + [0]*(MAX_NUM_PLAYERS - len(self.active_players))
+        state += [self.pot, self.current_bet[player_id]] + self.bets + [0]*(MAX_NUM_PLAYERS - len(self.bets))
+        state += self.money + [0]*(MAX_NUM_PLAYERS - len(self.money))
+        self.states += state
 
-        # Extract ranks and suits, pad to 7 cards total
-        ranks = [card[0] for card in all_cards] + [0] * (7 - len(all_cards))
-        suits = [card[1] for card in all_cards] + [0] * (7 - len(all_cards))
-
-        # Build state vector with fixed size
-        state = ranks + suits  # 7 + 7 = 14 elements
-        state += [player_id]  # 1 element
-        state += self.active_players + [0]*(MAX_NUM_PLAYERS - len(self.active_players))  # MAX_NUM_PLAYERS elements
-        state += [self.pot, self.current_bet[player_id]]  # 2 elements
-        state += self.bets + [0]*(MAX_NUM_PLAYERS - len(self.bets))  # MAX_NUM_PLAYERS elements
-        state += self.money + [0]*(MAX_NUM_PLAYERS - len(self.money))  # MAX_NUM_PLAYERS elements
-
-        # Total: 14 + 1 + 9 + 2 + 9 + 9 = 44 elements
         return np.array(state, dtype=np.float32)
-
+    
     def show_state(self):
         print("\n===================================")
         print(f"Phase: {phase(len(self.community_cards))}")
@@ -407,7 +397,7 @@ class PokerEnv:
             if self.active_players.count(True) <= 1:
                 self.game_over = True
             return
-
+        
         # Check
         elif action == 1:
             highest_bet = max(self.bets) # if any(self.bets) else 0
@@ -450,11 +440,11 @@ class PokerEnv:
 
             if self.money[player_id] == 0:
                 self.can_act[player_id] = False
-
+        
         # Raise
         elif action == 3:
             highest_bet = max(self.bets) if any(self.bets) else 0
-            target_bet = highest_bet + raise_amount
+            target_bet = highest_bet + raise_amount 
             # If target equals highest and player still has chips, treat as illegal (raise must increase)
             if target_bet == highest_bet and self.money[player_id] > 0:
                 print(f"Invalid Raise | Cannot raise by zero. Player {player_id+1} penalized: forced to go all-in.")
@@ -593,7 +583,7 @@ class PokerEnv:
             money_change = [total_won[i] - self.bets[i] for i in range(len(total_won))]
             # print(f"{money_change}, {self.net}")
             self.net[i] += money_change[i]
-
+        
         # self.result = [self.net[i] - self.endowment*self.reload[i] for i in range(self.num_players)]
         print("\nCommunity cards:")
         if self.community_cards:
@@ -659,11 +649,10 @@ def play():
     #     print(f"{env.active_players_str[i]}")
     print(f"Action: {env.actions}")
 
-if __name__ == "__main__":
-    NUM_PLAYERS = 6
-    ENDOWMENT = 1000
+NUM_PLAYERS = 6
+ENDOWMENT = 1000
 
-    env = PokerEnv(NUM_PLAYERS, ENDOWMENT)
-    for hand in range(100):  # play 100 hands
-        print(f"\n=== HAND {hand+1} ===")
-        play()
+env = PokerEnv(NUM_PLAYERS, ENDOWMENT)
+for hand in range(100):  # play 5 hands
+    print(f"\n=== HAND {hand+1} ===")
+    play()

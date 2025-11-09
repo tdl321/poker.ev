@@ -153,7 +153,7 @@ class PokerAgent(nn.Module):
             - Fold is always legal
             - Check is legal when no bet is owed or player is all-in
             - Call is legal when a bet must be matched
-            - Raise is legal when player has chips remaining
+            - Raise is legal when player has chips to raise above the current bet
         """
         # Initialize mask on the same device as the model
         legal_mask = torch.zeros(4, dtype=torch.bool, device=self.device)
@@ -178,8 +178,10 @@ class PokerAgent(nn.Module):
         if to_call > 0 and player_money > 0:
             legal_mask[2] = True
 
-        # Raise is legal if player has chips
-        if player_money > 0:
+        # Raise is legal only if player has chips remaining AFTER calling
+        # (i.e., enough chips to actually raise above the current bet)
+        max_raise_possible = max(player_money - to_call, 0)
+        if max_raise_possible > 0:
             legal_mask[3] = True
 
         return legal_mask

@@ -51,7 +51,10 @@ if "messages" in result:
             print(f"Role: {msg.role}")
 
 print("\n" + "="*60)
-print("Using get_advice method:")
+print("Using get_advice_stream method:")
 print("="*60)
-advice = advisor.get_advice("Should I call with pocket jacks?")
-print(f"\nAdvice: {advice}")
+advice = ""
+for chunk in advisor.get_advice_stream("Should I call with pocket jacks?"):
+    print(chunk, end='', flush=True)
+    advice += chunk
+print(f"\n\nFull advice: {advice}")

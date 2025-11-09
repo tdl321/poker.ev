@@ -79,6 +79,7 @@ class PygameGUI:
         self.raise_percentage = 0.0
         self.game_over = False
         self.final_game_state = None
+        self.completed_board = None  # Cache completed board for game over showdown
 
         # Animation state
         self.message = ""
@@ -139,7 +140,8 @@ class PygameGUI:
             game_context = GameContextProvider(self.game)
             self.poker_advisor = PokerAdvisor(
                 game_context_provider=game_context,
-                decision_tracker=self.decision_tracker  # Will be None if tracking disabled
+                decision_tracker=self.decision_tracker,  # Will be None if tracking disabled
+                hand_history=self.hand_history  # Will be None if hand history disabled
             )
             self.set_message("Poker Advisor Ready! Press Tab to toggle panel")
         except Exception as e:
@@ -187,7 +189,7 @@ class PygameGUI:
                 self.chat_panel.start_streaming_message()
 
                 # Stream chunks from DeepSeek API and update progressively
-                for chunk in self.poker_advisor.get_advice_stream(enhanced_message, game_state):
+                for chunk in self.poker_advisor.get_advice_stream(enhanced_message):
                     if chunk:  # Only add non-empty chunks
                         self.chat_panel.append_to_streaming_message(chunk)
 
@@ -241,7 +243,7 @@ class PygameGUI:
         return str(card_obj)
 
     def _track_hand_start(self, state: dict):
-        """Track when a new hand starts"""
+        """Track when a new hand starts and save initial state to Pinecone"""
         # Only track if hand is active and we haven't tracked this hand yet
         if state['hand_active'] and self.current_hand_id is None:
             import time
@@ -257,10 +259,48 @@ class PygameGUI:
 
             print(f"\n📋 Hand started: {self.current_hand_id}")
 
+            # STAGE 1: Save initial hand state to Pinecone (in-progress)
+            if self.enable_hand_history and self.hand_history:
+                self._save_hand_in_progress(state)
+
             # Initialize decision tracking for this hand
             if self.enable_decision_tracking and self.decision_tracker:
                 self.decision_tracker.start_hand(self.current_hand_id)
                 print(f"   Decision tracking started for hand")
+
+    def _save_hand_in_progress(self, state: dict):
+        """
+        STAGE 1: Save current hand state to Pinecone (in-progress/live update)
+
+        This allows the AI advisor to access the current hand from the vector DB
+        """
+        if not self.enable_hand_history or not self.hand_history:
+            return
+
+        if self.current_hand_id is None:
+            return
+
+        from datetime import datetime
+
+        print(f"💾 Saving in-progress hand to Pinecone...")
+
+        # Prepare current hand data
+        hand_data = self._prepare_hand_data(state)
+
+        # Mark as in-progress
+        hand_data['hand_status'] = 'in_progress'
+        hand_data['outcome'] = 'in_progress'
+        hand_data['profit'] = 0  # Unknown until hand completes
+
+        # Save/update to Pinecone (upsert will update if exists)
+        try:
+            success = self.hand_history.save_hand(hand_data)
+            if success:
+                print(f"✅ In-progress hand saved (ID: {self.current_hand_id})")
+            else:
+                print(f"⚠️  Failed to save in-progress hand")
+        except Exception as e:
+            print(f"❌ Error saving in-progress hand: {e}")
 
     def _track_hand_end(self, state: dict):
         """Track when a hand ends and save to Pinecone"""
@@ -278,10 +318,13 @@ class PygameGUI:
             from datetime import datetime
 
             print(f"\n🏁 Hand ended: {self.current_hand_id}")
-            print(f"💾 Saving hand to Pinecone...")
+            print(f"💾 STAGE 2: Saving completed hand to Pinecone...")
 
             # Prepare hand data
             hand_data = self._prepare_hand_data(state)
+
+            # STAGE 2: Mark as completed with final outcome
+            hand_data['hand_status'] = 'completed'
 
             # Log what we're saving
             print(f"   Cards: {', '.join(hand_data['your_cards']) if hand_data['your_cards'] else 'None'}")
@@ -289,15 +332,15 @@ class PygameGUI:
             print(f"   Outcome: {hand_data['outcome']}")
             print(f"   Profit: ${hand_data['profit']:+d}")
 
-            # Save to Pinecone
+            # Save to Pinecone (upsert will update the in-progress hand)
             try:
                 success = self.hand_history.save_hand(hand_data)
                 if success:
-                    print(f"✅ Hand saved successfully!")
+                    print(f"✅ Completed hand saved successfully!")
                 else:
-                    print(f"⚠️  Failed to save hand")
+                    print(f"⚠️  Failed to save completed hand")
             except Exception as e:
-                print(f"❌ Error saving hand: {e}")
+                print(f"❌ Error saving completed hand: {e}")
                 import traceback
                 traceback.print_exc()
 
@@ -339,7 +382,8 @@ class PygameGUI:
             # Prepare and save hand data
             try:
                 hand_data = self._prepare_hand_data(state)
-                hand_data['outcome'] = 'incomplete'  # Mark as incomplete
+                hand_data['hand_status'] = 'incomplete'  # Mark as incomplete
+                hand_data['outcome'] = 'incomplete'
                 hand_data['notes'] = f"{hand_data.get('notes', '')} | Incomplete (game exited)"
 
                 success = self.hand_history.save_hand(hand_data)
@@ -492,6 +536,10 @@ class PygameGUI:
             )
 
             print(f"   ✅ Post-decision saved: {self._action_to_string(action, amount)}")
+
+            # STAGE 1: Update hand in Pinecone after action
+            if self.enable_hand_history and self.hand_history:
+                self._save_hand_in_progress(state)
 
             # Clear current decision
             self.current_decision_id = None
@@ -699,8 +747,15 @@ class PygameGUI:
         self.render_table()
 
         # Draw community cards
-        if state['hand_active']:
-            self.render_community_cards(state['board'])
+        if state['hand_active'] or self.game_over:
+            # When game is over, show all 5 community cards (complete the board)
+            board_to_render = state['board']
+            if self.game_over:
+                # Use cached completed board, or generate it once
+                if self.completed_board is None:
+                    self.completed_board = self._complete_board_for_showdown(state)
+                board_to_render = self.completed_board
+            self.render_community_cards(board_to_render)
 
         # Draw pot
         self.render_pot(state['pot'])
@@ -808,11 +863,11 @@ class PygameGUI:
             card_y = y - box_height//2 + 80
             for i, card in enumerate(player['hand']):
                 card_x = x - box_width//2 + 10 + i * 70
-                if is_human:
-                    # Show cards for human
+                if is_human or self.game_over:
+                    # Show cards for human OR when game is over (reveal all cards)
                     sprite = self.card_renderer.get_card_sprite(card, scale=(60, 84))
                 else:
-                    # Show card back for AI
+                    # Show card back for AI during gameplay
                     sprite = self.card_renderer.get_card_back(scale=(60, 84))
                 if sprite:
                     self.screen.blit(sprite, (card_x, card_y))
@@ -933,18 +988,74 @@ class PygameGUI:
 
         self.screen.blit(text, text_rect)
 
+    def _complete_board_for_showdown(self, state: dict) -> list:
+        """
+        Complete the board to 5 cards for showdown when game is over.
+
+        This simulates dealing out all remaining community cards to determine the winner,
+        just like in a real poker game.
+
+        Args:
+            state: Current game state
+
+        Returns:
+            List of 5 community cards (completed board)
+        """
+        from texasholdem import Card
+        import random
+
+        current_board = list(state.get('board', []))
+
+        # If already 5 cards, return as-is
+        if len(current_board) >= 5:
+            return current_board
+
+        # Create a full deck using proper Card creation
+        # Card.STR_RANKS = "23456789TJQKA" (indices 0-12)
+        # Card.INT_SUIT_TO_CHAR_SUIT maps: 1='s', 2='h', 4='d', 8='c'
+        all_cards = []
+        for rank in range(13):
+            for suit in [1, 2, 4, 8]:
+                rank_char = Card.STR_RANKS[rank]
+                suit_char = Card.INT_SUIT_TO_CHAR_SUIT[suit]
+                card_string = f"{rank_char}{suit_char}"
+                all_cards.append(Card(card_string))
+
+        # Remove community cards
+        for card in current_board:
+            if card in all_cards:
+                all_cards.remove(card)
+
+        # Remove player cards (including folded players who still have cards)
+        for player in state.get('players', []):
+            if 'hand' in player:
+                for card in player['hand']:
+                    if card in all_cards:
+                        all_cards.remove(card)
+
+        # Deal remaining cards to complete the board
+        cards_needed = 5 - len(current_board)
+        if cards_needed > 0 and len(all_cards) >= cards_needed:
+            remaining_cards = random.sample(all_cards, cards_needed)
+            completed_board = current_board + remaining_cards
+        else:
+            # Fallback if not enough cards (shouldn't happen in normal play)
+            completed_board = current_board
+
+        return completed_board
+
     def render_game_over(self):
         """Render game over screen - overlays game over image on final game state"""
-        # Render the final game state as background
+        # Render the final game state as background (with all cards revealed)
         if self.final_game_state:
             self.render(self.final_game_state)
         else:
             # Fallback if no final state captured
             self.screen.fill(self.BG_COLOR)
 
-        # Create semi-transparent overlay
+        # Create semi-transparent overlay (lighter so cards are more visible)
         overlay = pygame.Surface(self.window_size)
-        overlay.set_alpha(128)  # 50% transparency
+        overlay.set_alpha(100)  # 40% transparency (less dark to see cards better)
         overlay.fill((0, 0, 0))  # Black overlay
         self.screen.blit(overlay, (0, 0))
 
@@ -952,36 +1063,13 @@ class PygameGUI:
         center_x = self.window_size[0] // 2
         center_y = self.window_size[1] // 2
 
-        # Display game over image scaled to 2x size
-        gameover_bottom_y = center_y  # Track bottom of game over element
-        if 'gameover' in self.button_sprites:
-            # Load the original image and scale to 2x
-            assets_dir = "poker_ev/assets"
-            gameover_path = os.path.join(assets_dir, "buttons", "gameover.png")
-            if os.path.exists(gameover_path):
-                gameover_original = pygame.image.load(gameover_path)
-                # Scale to 2x size
-                gameover_sprite = pygame.transform.scale(gameover_original,
-                    (int(gameover_original.get_width() * 2), int(gameover_original.get_height() * 2)))
-                sprite_rect = gameover_sprite.get_rect(center=(center_x, center_y))
-                self.screen.blit(gameover_sprite, sprite_rect)
-                gameover_bottom_y = sprite_rect.bottom
-            else:
-                # Fallback to pre-loaded sprite (which has 3x scaling from load_assets)
-                gameover_sprite = self.button_sprites['gameover']
-                sprite_rect = gameover_sprite.get_rect(center=(center_x, center_y))
-                self.screen.blit(gameover_sprite, sprite_rect)
-                gameover_bottom_y = sprite_rect.bottom
-        else:
-            # Fallback text if image not found
-            title_text = self.font_large.render("GAME OVER", True, self.RED_COLOR)
-            title_rect = title_text.get_rect(center=(center_x, center_y))
-            self.screen.blit(title_text, title_rect)
-            gameover_bottom_y = title_rect.bottom
-
-        # Display "R to Restart" text directly under game over image
+        # Position "R to Restart" between community cards and user, with clearance
+        # Community cards are at: center_y - 60
+        # User (player 0) is at: center_y - 280 (top of ellipse)
+        # Position slightly below midpoint to avoid covering anything
+        restart_y = center_y - 130
         restart_text = self.font_large.render("R to Restart", True, self.GOLD_COLOR)
-        restart_rect = restart_text.get_rect(center=(center_x, gameover_bottom_y + 60))
+        restart_rect = restart_text.get_rect(center=(center_x, restart_y))
 
         # Add background for better visibility
         bg_rect = restart_rect.inflate(40, 20)
@@ -1073,6 +1161,7 @@ class PygameGUI:
         # Reset GUI state
         self.game_over = False
         self.final_game_state = None
+        self.completed_board = None
         self.showing_raise_input = False
         self.raise_amount = 0
         self.raise_percentage = 0.0

@@ -72,7 +72,13 @@ class PokerTools:
 
         @tool
         def get_game_state() -> str:
-            """Get the current poker game state including player's hole cards, position at the table, current hand phase, board cards, pot size, and opponent information. Use this FIRST when providing situation-specific advice or recommendations."""
+            """[DEPRECATED - Rarely needed] Get the current poker game state.
+
+            ⚠️ NOTE: Game state is AUTOMATICALLY provided in every user query in a [CURRENT GAME STATE] block.
+            You should read the auto-provided state from the user message instead of calling this tool.
+
+            This tool is only useful in special cases where you need to refresh the state or access it programmatically.
+            For normal advice, always use the game state already in the user's message."""
             if not game_context_provider:
                 return "No active game state available"
 
@@ -1102,15 +1108,16 @@ Please specify position:
                 traceback.print_exc()
                 return f"Could not get recent hands: {str(e)}"
 
+        # Core tools (ordered by importance)
         tools = [
-            search_poker_knowledge,
-            get_game_state,
-            calculate_pot_odds,
-            calculate_outs,
-            count_combinations,
-            estimate_hand_strength,
-            analyze_position,
-            get_recent_hands
+            search_poker_knowledge,      # RAG for strategy
+            calculate_pot_odds,           # Math for decisions
+            calculate_outs,               # Equity calculation
+            count_combinations,           # Probability teaching
+            estimate_hand_strength,       # Hand evaluation
+            analyze_position,             # Position strategy
+            get_recent_hands,             # Hand history
+            get_game_state,               # DEPRECATED - state is auto-injected now
         ]
 
         return tools

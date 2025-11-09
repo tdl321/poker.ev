@@ -220,6 +220,7 @@ class PineconeMemoryStore:
                 'phase': hand_data.get('phase', 'unknown'),
                 'position': hand_data.get('position', 'unknown'),
                 'notes': hand_data.get('notes', ''),
+                'hand_status': hand_data.get('hand_status', 'completed'),  # Track hand lifecycle
 
                 # Optional contextual fields
                 'hand_strength': hand_data.get('hand_strength', ''),

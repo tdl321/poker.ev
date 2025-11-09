@@ -56,11 +56,11 @@ def main():
     print("  • Semantic search for similar hands")
     print()
     print("AI Opponents:")
-    print("  • Player 1: Call Agent (always calls)")
-    print("  • Player 2: Random Agent")
-    print("  • Player 3: Aggressive Agent (raises often)")
-    print("  • Player 4: Tight Agent (folds often)")
-    print("  • Player 5: Random Agent")
+    print("  • 5 Neural Network agents with varying risk profiles")
+    print("    - Risk-seeking (aggressive play)")
+    print("    - Risk-neutral (balanced play)")
+    print("    - Risk-averse (conservative play)")
+    print("  • Random mix each game for variety")
     print()
     print("=" * 60)
     print("Starting game...")
@@ -79,12 +79,27 @@ def main():
     agent_manager = AgentManager()
 
     # Player 0 is human (no agent)
-    # Assign different AI strategies to other players
-    agent_manager.register_agent(1, AgentManager.call_agent)
-    agent_manager.register_agent(2, AgentManager.random_agent)
-    agent_manager.register_agent(3, AgentManager.aggressive_agent)
-    agent_manager.register_agent(4, AgentManager.tight_agent)
-    agent_manager.register_agent(5, AgentManager.random_agent)
+    # Try to setup neural network agents, fall back to rule-based if unavailable
+    use_neural_agents = os.getenv('USE_NEURAL_AGENTS', 'true').lower() == 'true'
+
+    if use_neural_agents:
+        try:
+            print("🧠 Loading neural network agents...")
+            agent_manager.setup_neural_agents(num_players=6, human_player=0)
+            print("✓ Neural agents loaded successfully!\n")
+        except Exception as e:
+            print(f"⚠ Warning: Could not load neural agents: {e}")
+            print("   Falling back to rule-based agents...\n")
+            use_neural_agents = False
+
+    if not use_neural_agents:
+        print("🎮 Using rule-based agents:")
+        print("  • Player 1: Call Agent")
+        print("  • Player 2: Random Agent")
+        print("  • Player 3: Aggressive Agent")
+        print("  • Player 4: Tight Agent")
+        print("  • Player 5: Random Agent\n")
+        agent_manager.setup_default_agents(num_players=6, human_player=0)
 
     # Create and run GUI
     try:

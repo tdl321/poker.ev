@@ -4,7 +4,9 @@ Agent manager for coordinating AI opponents
 
 from texasholdem import TexasHoldEm, ActionType
 from texasholdem.agents import random_agent, call_agent
-from typing import Tuple, Callable, Dict
+from typing import Tuple, Callable, Dict, Optional
+import random
+from pathlib import Path
 
 # Type alias for agent functions
 AgentFunc = Callable[[TexasHoldEm], Tuple[ActionType, int]]
@@ -173,6 +175,98 @@ class AgentManager:
 
         # Default to fold
         return ActionType.FOLD, 0
+
+    def register_neural_agent(self, player_id: int, model_path: str,
+                              risk_profile: str = 'neutral'):
+        """
+        Register a neural network agent for a specific player.
+
+        Args:
+            player_id: The player ID to assign the neural agent to
+            model_path: Path to the trained model .pt file
+            risk_profile: Risk profile ('neutral', 'averse', 'seeking')
+        """
+        try:
+            from poker_ev.agents.neural_agent import create_neural_agent
+
+            # Create neural agent adapter
+            neural_agent = create_neural_agent(
+                model_path=model_path,
+                player_id=player_id,
+                risk_profile=risk_profile
+            )
+
+            # Register with agent manager
+            self.register_agent(player_id, neural_agent)
+
+        except ImportError as e:
+            print(f"⚠ Warning: Could not load neural agent: {e}")
+            print(f"   Falling back to random agent for player {player_id}")
+            self.register_agent(player_id, self.random_agent)
+
+    def setup_neural_agents(self, num_players: int, human_player: int = 0,
+                           model_dir: Optional[str] = None):
+        """
+        Setup neural network agents with random mix of risk profiles.
+
+        Creates 5 AI agents with random distribution of:
+        - Risk-seeking (aggressive)
+        - Risk-averse (conservative)
+        - Risk-neutral (balanced)
+
+        Args:
+            num_players: Total number of players (should be 6: 1 human + 5 AI)
+            human_player: Which player is human (default: 0)
+            model_dir: Directory containing trained model files (default: model/)
+        """
+        if model_dir is None:
+            # Default to model/ directory in project root
+            project_root = Path(__file__).parent.parent.parent
+            model_dir = project_root / "model"
+        else:
+            model_dir = Path(model_dir)
+
+        # Risk profiles with their model file patterns
+        risk_profiles = ['neutral', 'averse', 'seeking']
+
+        # Generate random mix of 5 agents from 3 risk profiles
+        # This will create a random combination that adds up to 5 agents
+        ai_player_count = num_players - 1  # Exclude human player
+        ai_risk_profiles = random.choices(risk_profiles, k=ai_player_count)
+
+        print(f"\n🎲 Setting up {ai_player_count} neural agents with random risk profiles:")
+        print(f"   Distribution: {dict(zip(*list(zip(*[(p, ai_risk_profiles.count(p)) for p in set(ai_risk_profiles)]))))}")
+
+        # Assign agents to players
+        agent_index = 0
+        for player_id in range(num_players):
+            if player_id == human_player:
+                continue  # Skip human player
+
+            risk_profile = ai_risk_profiles[agent_index]
+
+            # Look for trained model file
+            # Pattern: poker_agent_{id}_{risk_profile}.pt
+            # Try to find any model with this risk profile
+            model_files = list(model_dir.glob(f"poker_agent_*_{risk_profile}.pt"))
+
+            if model_files:
+                # Use the first matching model file
+                model_path = str(model_files[0])
+                print(f"   Player {player_id}: {risk_profile:8s} <- {model_files[0].name}")
+            else:
+                # Fallback: use untrained model (will warn in neural_agent.py)
+                model_path = str(model_dir / f"poker_agent_0_{risk_profile}.pt")
+                print(f"   Player {player_id}: {risk_profile:8s} (untrained)")
+
+            # Register neural agent
+            self.register_neural_agent(
+                player_id=player_id,
+                model_path=model_path,
+                risk_profile=risk_profile
+            )
+
+            agent_index += 1
 
     def setup_default_agents(self, num_players: int, human_player: int = 0):
         """

@@ -45,8 +45,12 @@ query = "What is the best move for my current hand?"
 print(f"\nQuery: {query}")
 print("\nResponse:")
 print("-" * 60)
-response = advisor.get_advice(query)
-print(response)
+# Collect streaming response
+response = ""
+for chunk in advisor.get_advice_stream(query):
+    print(chunk, end='', flush=True)
+    response += chunk
+print()
 print("-" * 60)
 
 # Check if response mentions the correct cards from the game state
