@@ -295,8 +295,19 @@ class ChatPanel:
         # Draw panel background
         pygame.draw.rect(screen, self.PANEL_BG, self.rect)
 
-        # Draw panel border
-        pygame.draw.rect(screen, self.BORDER_COLOR, self.rect, 2)
+        # Draw panel borders (left, right, bottom - no top border)
+        # Left border
+        pygame.draw.line(screen, self.BORDER_COLOR,
+                        (self.rect.left, self.rect.top),
+                        (self.rect.left, self.rect.bottom), 2)
+        # Right border
+        pygame.draw.line(screen, self.BORDER_COLOR,
+                        (self.rect.right - 2, self.rect.top),
+                        (self.rect.right - 2, self.rect.bottom), 2)
+        # Bottom border
+        pygame.draw.line(screen, self.BORDER_COLOR,
+                        (self.rect.left, self.rect.bottom - 2),
+                        (self.rect.right, self.rect.bottom - 2), 2)
 
         # Draw header
         self._render_header(screen)
