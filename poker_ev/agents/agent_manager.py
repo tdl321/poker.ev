@@ -177,7 +177,7 @@ class AgentManager:
         return ActionType.FOLD, 0
 
     def register_neural_agent(self, player_id: int, model_path: str,
-                              risk_profile: str = 'neutral'):
+                              risk_profile: str = 'neutral', verbose: bool = False):
         """
         Register a neural network agent for a specific player.
 
@@ -185,6 +185,7 @@ class AgentManager:
             player_id: The player ID to assign the neural agent to
             model_path: Path to the trained model .pt file
             risk_profile: Risk profile ('neutral', 'averse', 'seeking')
+            verbose: If True, log each neural network decision
         """
         try:
             from poker_ev.agents.neural_agent import create_neural_agent
@@ -193,7 +194,8 @@ class AgentManager:
             neural_agent = create_neural_agent(
                 model_path=model_path,
                 player_id=player_id,
-                risk_profile=risk_profile
+                risk_profile=risk_profile,
+                verbose=verbose
             )
 
             # Register with agent manager
@@ -205,7 +207,7 @@ class AgentManager:
             self.register_agent(player_id, self.random_agent)
 
     def setup_neural_agents(self, num_players: int, human_player: int = 0,
-                           model_dir: Optional[str] = None):
+                           model_dir: Optional[str] = None, verbose: bool = False):
         """
         Setup neural network agents with random mix of risk profiles.
 
@@ -218,6 +220,7 @@ class AgentManager:
             num_players: Total number of players (should be 6: 1 human + 5 AI)
             human_player: Which player is human (default: 0)
             model_dir: Directory containing trained model files (default: model/)
+            verbose: If True, log each neural network decision (useful for debugging)
         """
         if model_dir is None:
             # Default to model/ directory in project root
@@ -263,10 +266,14 @@ class AgentManager:
             self.register_neural_agent(
                 player_id=player_id,
                 model_path=model_path,
-                risk_profile=risk_profile
+                risk_profile=risk_profile,
+                verbose=verbose
             )
 
             agent_index += 1
+
+        if verbose:
+            print(f"\n💡 Verbose mode enabled - neural network decisions will be logged during gameplay")
 
     def setup_default_agents(self, num_players: int, human_player: int = 0):
         """

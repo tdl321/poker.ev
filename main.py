@@ -81,11 +81,16 @@ def main():
     # Player 0 is human (no agent)
     # Try to setup neural network agents, fall back to rule-based if unavailable
     use_neural_agents = os.getenv('USE_NEURAL_AGENTS', 'true').lower() == 'true'
+    verbose_agents = os.getenv('VERBOSE_AGENTS', 'false').lower() == 'true'
 
     if use_neural_agents:
         try:
             print("🧠 Loading neural network agents...")
-            agent_manager.setup_neural_agents(num_players=6, human_player=0)
+            agent_manager.setup_neural_agents(
+                num_players=6,
+                human_player=0,
+                verbose=verbose_agents
+            )
             print("✓ Neural agents loaded successfully!\n")
         except Exception as e:
             print(f"⚠ Warning: Could not load neural agents: {e}")

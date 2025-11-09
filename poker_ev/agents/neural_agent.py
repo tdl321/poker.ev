@@ -39,7 +39,7 @@ class NeuralAgentAdapter:
         3: ActionType.RAISE,
     }
 
-    def __init__(self, model_path: str, player_id: int, risk_profile: str = 'neutral'):
+    def __init__(self, model_path: str, player_id: int, risk_profile: str = 'neutral', verbose: bool = False):
         """
         Initialize the neural agent adapter.
 
@@ -47,9 +47,12 @@ class NeuralAgentAdapter:
             model_path: Path to trained model .pt file
             player_id: ID of the player this agent controls
             risk_profile: Risk profile of the agent ('neutral', 'averse', 'seeking')
+            verbose: If True, print decision-making details
         """
         self.player_id = player_id
         self.risk_profile = risk_profile
+        self.verbose = verbose
+        self.decision_count = 0
 
         # State dimension must match training (44 from PokerEnv.get_state)
         state_dim = 44
@@ -64,9 +67,11 @@ class NeuralAgentAdapter:
         )
 
         # Load trained weights
+        self.weights_loaded = False
         try:
             self.model.load_state_dict(torch.load(model_path, map_location='cpu'))
             self.model.eval()  # Set to evaluation mode
+            self.weights_loaded = True
             print(f"✓ Loaded neural agent: {model_path} (risk_profile={risk_profile})")
         except FileNotFoundError:
             print(f"⚠ Warning: Model file not found: {model_path}")
@@ -103,8 +108,15 @@ class NeuralAgentAdapter:
                 player_id=self.player_id
             )
 
+        # Track decision count
+        self.decision_count += 1
+
         # Convert PokerEnv action index to TexasHoldEm ActionType
         action = self.ACTION_MAP[action_idx]
+
+        # Log neural network decision if verbose
+        if self.verbose:
+            print(f"[NN Player {self.player_id} ({self.risk_profile})]: Decision #{self.decision_count} → {action.name}")
 
         # Handle raise action
         if action == ActionType.RAISE:
@@ -192,7 +204,7 @@ class NeuralAgentAdapter:
         return action, amount
 
 
-def create_neural_agent(model_path: str, player_id: int, risk_profile: str = 'neutral'):
+def create_neural_agent(model_path: str, player_id: int, risk_profile: str = 'neutral', verbose: bool = False):
     """
     Factory function to create a neural agent adapter.
 
@@ -200,9 +212,10 @@ def create_neural_agent(model_path: str, player_id: int, risk_profile: str = 'ne
         model_path: Path to trained model .pt file
         player_id: ID of the player this agent controls
         risk_profile: Risk profile ('neutral', 'averse', 'seeking')
+        verbose: If True, log each neural network decision
 
     Returns:
         Callable: Function that takes TexasHoldEm and returns (ActionType, amount)
     """
-    adapter = NeuralAgentAdapter(model_path, player_id, risk_profile)
+    adapter = NeuralAgentAdapter(model_path, player_id, risk_profile, verbose)
     return adapter
