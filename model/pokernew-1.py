@@ -586,7 +586,22 @@ class PokerEnv:
             money_change = [total_won[i] - self.bets[i] for i in range(len(total_won))]
             # print(f"{money_change}, {self.net}")
             self.net[i] += money_change[i]
-        
+
+        # Announce winner(s) clearly
+        print("\n" + "="*60)
+        print("HAND WINNER(S)")
+        print("="*60)
+        winners = [i for i in range(self.num_players) if total_won[i] > 0]
+        for winner_id in winners:
+            profit = money_change[winner_id]
+            print(f"\nPlayer {winner_id+1} WINS ${total_won[winner_id]} (Profit: ${profit:+d})")
+            if self.active_players[winner_id]:
+                print(f"Winning hand:")
+                for c in self.hands[winner_id]:
+                    print(f"  {card_name(c)}")
+                print(f"Hand Strength: {hand_strength(self.hands[winner_id] + self.community_cards)}")
+        print("="*60)
+
         # self.result = [self.net[i] - self.endowment*self.reload[i] for i in range(self.num_players)]
         print("\nCommunity cards:")
         if self.community_cards:
