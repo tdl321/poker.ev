@@ -273,6 +273,14 @@ class PokerAgent(nn.Module):
         # Get legal actions mask
         legal_mask = self.get_legal_actions(env, player_id)
 
+        # Safety check: if no legal actions available, default to fold
+        if not legal_mask.any():
+            print(f"WARNING: No legal actions for player {player_id}. Defaulting to fold.")
+            print(f"  Active: {env.active_players[player_id]}, Money: {env.money[player_id]}, Bets: {env.bets}")
+            action = 0  # Fold
+            raise_amount = 0
+            return action, raise_amount, action_logits, value
+
         # Mask illegal actions by setting logits to -inf
         # This ensures zero probability after softmax
         masked_logits = action_logits.clone()
@@ -280,6 +288,15 @@ class PokerAgent(nn.Module):
 
         # Sample action from categorical distribution over legal actions
         action_probs = F.softmax(masked_logits, dim=-1)
+
+        # Additional safety: check for NaN or Inf in probabilities
+        if torch.isnan(action_probs).any() or torch.isinf(action_probs).any():
+            print(f"WARNING: Invalid probabilities detected. Logits: {masked_logits}, Probs: {action_probs}")
+            # Default to fold
+            action = 0
+            raise_amount = 0
+            return action, raise_amount, action_logits, value
+
         action = torch.multinomial(action_probs, 1).item()
 
         # Determine raise amount if raise action was selected

@@ -158,7 +158,7 @@ def card_name(card):
     suit_name = suits_map[suit]
     return f"{rank_name} of {suit_name}s"
 
-
+phase_map = {"Pre-Flop":"Flop", "Flop":"Turn", "Turn":"River"}
 
 def phase(val):
     if val == 0:
@@ -181,8 +181,10 @@ class PokerEnv:
     def __init__(self, num_players, endowment, small_blind=10, big_blind=20, ante=0):
         self.deck = shuffled_deck()
         self.hands = []
-        self.active_players = [True] * num_players
         self.community_cards = []
+
+        self.active_players = [True] * num_players
+        self.can_act = [True] * num_players
         self.num_players = num_players
         self.played = [False] * num_players
         self.pot = 0
@@ -205,6 +207,9 @@ class PokerEnv:
 
         self.game_over = False
 
+        self.actions = f"Preflop:\n("
+        self.active_players_str = []
+
     def rotate_positions(self):
         """Rotate dealer and blinds for the next hand."""
         self.dealer_position = (self.dealer_position + 1) % self.num_players
@@ -220,11 +225,14 @@ class PokerEnv:
                 if self.money[i] < self.ante_amount:
                     print(f"Player {i+1} doesn't have enough for ante. Reloading stack (+{self.endowment}).")
                     self.money[i] += self.endowment  # reload bankroll
-                
+
                 ante_paid = min(self.money[i], self.ante_amount)
                 self.money[i] -= ante_paid
                 self.bets[i] += ante_paid
                 self.pot += ante_paid
+
+                if self.money[i] == 0:
+                    self.can_act[i] = False
             print(f"All players post ante of {self.ante_amount}.")
 
         # --- Small Blind ---
@@ -237,6 +245,9 @@ class PokerEnv:
         self.bets[sb_pos] += sb_paid
         self.pot += sb_paid
 
+        if self.money[sb_pos] == 0:
+            self.can_act[i] = False
+
         # --- Big Blind ---
         if self.money[bb_pos] < self.big_blind_amount:
             print(f"Player {bb_pos+1} doesn't have enough for big blind. Reloading stack (+{self.endowment}).")
@@ -247,6 +258,9 @@ class PokerEnv:
         self.bets[bb_pos] += bb_paid
         self.pot += bb_paid
 
+        if self.money[bb_pos] == 0:
+             self.can_act[i] = False
+
         print(f"Player {sb_pos+1} posts small blind of {sb_paid}.")
         print(f"Player {bb_pos+1} posts big blind of {bb_paid}.")
 
@@ -254,8 +268,18 @@ class PokerEnv:
         for i in range(self.num_players):
             self.current_bet[i] = self.bets[i]
 
+    def rebuy(self):
+        for i in range(self.num_players):
+            if self.money[i] < 1000:
+                rebuy = 1000 - self.money[i]
+                self.net[i] -= rebuy
+                self.money[i] += rebuy
+
     def deal(self, num_players):
         self.deck = shuffled_deck()
+        self.actions = f"Preflop:\n("
+        self.active_players_str = []
+        self.can_act = [True] * num_players
         self.hands = [[self.deck.pop(), self.deck.pop()] for _ in range(num_players)]
         self.active_players = [True] * num_players
         self.played = [False] * num_players
@@ -263,9 +287,12 @@ class PokerEnv:
         self.current_bet = [0] * num_players
         self.pot = 0
         self.community_cards = []
+        self.rebuy()
+        self.rotate_positions()
         self.post_blinds_and_antes()
 
     def next_round(self):
+        self.actions += f")\n{phase_map[phase(len(self.community_cards))]}:\n("
         # Flop
         if len(self.community_cards) == 0:
             self.deck.pop()
@@ -280,7 +307,7 @@ class PokerEnv:
         elif len(self.community_cards) == 4:
             self.deck.pop()
             self.community_cards.append(self.deck.pop())
-        
+
         else:
             print(f"Invalid Number of Community Cards: {len(self.community_cards)}")
             sys.exit(1)
@@ -292,32 +319,22 @@ class PokerEnv:
         hand = self.hands[player_id]
         comm = self.community_cards
         """
-        state: Fixed length vector representing game state
-        Cards are padded to max 7 cards (2 hand + 5 community)
+        state: length: 28 + 3(MAX_NUM_PLAYERS-2) = 46 | for MAX_NUM_PLAYERS >= 2
+
         """
-        # Combine hand and community cards
-        all_cards = hand + comm
+        state = [card[0] for card in hand + comm] + [card[1] for card in hand + comm] + [0]*(14 - len(hand + comm))
+        state += [player_id] + [self.dealer_position] + [self.big_blind_amount] + [self.small_blind_amount] + self.active_players + [0]*(MAX_NUM_PLAYERS - len(self.active_players))
+        state += [self.pot, self.current_bet[player_id]] + self.bets + [0]*(MAX_NUM_PLAYERS - len(self.bets))
+        state += self.money + [0]*(MAX_NUM_PLAYERS - len(self.money))
+        self.states += state
 
-        # Extract ranks and suits, pad to 7 cards total
-        ranks = [card[0] for card in all_cards] + [0] * (7 - len(all_cards))
-        suits = [card[1] for card in all_cards] + [0] * (7 - len(all_cards))
-
-        # Build state vector with fixed size
-        state = ranks + suits  # 7 + 7 = 14 elements
-        state += [player_id]  # 1 element
-        state += self.active_players + [0]*(MAX_NUM_PLAYERS - len(self.active_players))  # MAX_NUM_PLAYERS elements
-        state += [self.pot, self.current_bet[player_id]]  # 2 elements
-        state += self.bets + [0]*(MAX_NUM_PLAYERS - len(self.bets))  # MAX_NUM_PLAYERS elements
-        state += self.money + [0]*(MAX_NUM_PLAYERS - len(self.money))  # MAX_NUM_PLAYERS elements
-
-        # Total: 14 + 1 + 9 + 2 + 9 + 9 = 44 elements
         return np.array(state, dtype=np.float32)
     
     def show_state(self):
         print("\n===================================")
         print(f"Phase: {phase(len(self.community_cards))}")
         for i in range(len(self.active_players)):
-            print(f"(Active: {self.active_players[i]}) Player {i+1}'s hand:")
+            print(f"(In-hand: {self.active_players[i]}, Can-act: {self.can_act[i]}) Player {i+1}'s hand:")
             for c in self.hands[i]:
                 print(" ", card_name(c))
             # print("Strength:", hand_strength(self.hands[i] + self.community_cards))
@@ -336,8 +353,26 @@ class PokerEnv:
         actions: 0=fold, 1=check, 2=call, 3=raise
         Illegal moves cause immediate fold (penalty).
         """
-        if not self.active_players[player_id]:
+
+        # Block illegal re-actions in the same round
+        if self.played[player_id]:
+            print(f"Illegal: Player {player_id+1} already acted this round without new raise — forced to fold.")
+            self.active_players[player_id] = False
+            self.can_act[player_id] = False
+            self.actions += f"(Illegal), "
+            if self.active_players.count(True) <= 1:
+                self.game_over = True
             return
+
+        if not self.active_players[player_id] or not self.can_act[player_id]:
+            return
+
+        # self.active_players_str += [f"{i+1}:" + debugging_map[self.active_players[i]] for i in range(self.num_players)]
+        if (action_map[action] == "Raise"):
+            self.actions += f"Player {player_id+1} {action_map[action]}d {raise_amount}, "
+        else:
+            self.actions += f"Player {player_id+1} {action_map[action]}ed, "
+        # self.actions += f"Player {player_id+1} {action_map[action]}ed, "
 
         # mark as having acted (whether legal or illegal)
         self.played[player_id] = True
@@ -347,7 +382,11 @@ class PokerEnv:
             # raise must be strictly positive
             if raise_amount <= 0:
                 print(f"Illegal action: Player {player_id+1} attempted to raise by {raise_amount} (must be > 0). Penalized: forced to fold.")
-                self.active_players[player_id] = False
+                # self.active_players[player_id] = False
+                target_bet = self.money[player_id]
+                self.can_act[player_id] = False
+                self.actions += f"(Illegal), "
+                self.bet(target_bet, player_id)
                 if self.active_players.count(True) <= 1:
                     self.game_over = True
                 return
@@ -355,31 +394,40 @@ class PokerEnv:
         # Fold
         if action == 0:
             self.active_players[player_id] = False
+            self.can_act[player_id] = False
             if self.active_players.count(True) <= 1:
                 self.game_over = True
             return
-        
+
         # Check
         elif action == 1:
-            highest_bet = max(self.bets) if any(self.bets) else 0
+            highest_bet = max(self.bets) # if any(self.bets) else 0
             # If there is a higher bet than player's bet, check is invalid (unless player has no chips)
-            if highest_bet > self.bets[player_id] and self.money[player_id] > 0:
-                print(f"Invalid Check | There is a higher bet. Player {player_id+1} penalized: forced to fold.")
-                self.active_players[player_id] = False
-                if self.active_players.count(True) <= 1:
-                    self.game_over = True
+            if highest_bet > self.bets[player_id]:
+                print(f"Invalid Check | There is a higher bet. Player {player_id+1} penalized: forced to go all-in.")
+                # self.active_players[player_id] = False
+                target_bet = self.money[player_id]
+                self.can_act[player_id] = False
+                self.actions += f"(Illegal), "
+                self.bet(target_bet, player_id)
+                # if self.active_players.count(True) <= 1:
+                #     self.game_over = True
                 return
 
         # Call
         elif action == 2:
-            highest_bet = max(self.bets) if any(self.bets) else 0
+            highest_bet = max(self.bets) # if any(self.bets) else 0
             to_call = highest_bet - self.bets[player_id]
             # If nothing to call, then call is illegal (player should check or raise). Penalize.
             if to_call <= 0:
-                print(f"Invalid Call | Nothing to call for Player {player_id+1} (to_call={to_call}). Penalized: forced to fold.")
-                self.active_players[player_id] = False
-                if self.active_players.count(True) <= 1:
-                    self.game_over = True
+                print(f"Invalid Call | Nothing to call for Player {player_id+1} (to_call={to_call}). Penalized: forced to go all-in.")
+                # self.active_players[player_id] = False
+                target_bet = self.money[player_id]
+                self.can_act[player_id] = False
+                self.actions += f"(Illegal), "
+                self.bet(target_bet, player_id)
+                # if sum(1 for x in self.active_players if x) <= 1:
+                #     self.game_over = True
                 return
 
             call_amount = min(to_call, self.money[player_id])
@@ -390,71 +438,97 @@ class PokerEnv:
             self.bets[player_id] += diff
             self.pot += diff
             self.money[player_id] -= diff
-        
+
+            if self.money[player_id] == 0:
+                self.can_act[player_id] = False
+
         # Raise
         elif action == 3:
             highest_bet = max(self.bets) if any(self.bets) else 0
-            target_bet = highest_bet + raise_amount 
+            target_bet = highest_bet + raise_amount
             # If target equals highest and player still has chips, treat as illegal (raise must increase)
             if target_bet == highest_bet and self.money[player_id] > 0:
-                print(f"Invalid Raise | Cannot raise by zero. Player {player_id+1} penalized: forced to fold.")
-                self.active_players[player_id] = False
-                if self.active_players.count(True) <= 1:
-                    self.game_over = True
+                print(f"Invalid Raise | Cannot raise by zero. Player {player_id+1} penalized: forced to go all-in.")
+                # self.active_players[player_id] = False
+                target_bet = self.money[player_id]
+                self.can_act[player_id] = False
+                self.actions += f"(Illegal), "
+                self.bet(target_bet, player_id)
+                # if sum(1 for x in self.active_players if x) <= 1:
+                #     self.game_over = True
                 return
 
-            diff = target_bet - self.bets[player_id]
+            self.bet(target_bet, player_id)
 
-            # protect against negative diff or over-withdraw
-            diff = max(diff, 0)
-            actual_diff = min(diff, self.money[player_id])
+    def bet(self, target_bet, player_id):
+        diff = target_bet - self.bets[player_id]
 
-            self.money[player_id] -= actual_diff
-            self.bets[player_id] += actual_diff
-            # Update player's recorded current bet to the target they attempted (even if all-in clipped)
-            self.current_bet[player_id] = self.bets[player_id]
-            self.pot += actual_diff
+        # protect against negative diff or over-withdraw
+        diff = max(diff, 0)
+        actual_diff = min(diff, self.money[player_id])
 
-            # reset other players' played flags so they must respond to this new raise (but only those still active and with chips)
-            for i in range(len(self.played)):
-                if (i != player_id) and self.active_players[i] and self.money[i] > 0:
-                    self.played[i] = False
+        self.money[player_id] -= actual_diff
+        self.bets[player_id] += actual_diff
+        # Update player's recorded current bet to the target they attempted (even if all-in clipped)
+        self.current_bet[player_id] = self.bets[player_id]
+        self.pot += actual_diff
+
+        if self.money[player_id] == 0:
+            self.can_act[player_id] = False
+
+        # reset other players' played flags so they must respond to this new raise (but only those still active and with chips)
+        # Reset action flags only for opponents who are still in-hand and can respond
+        for i in range(self.num_players):
+            if i != player_id and self.active_players[i] and self.can_act[i]:
+                self.played[i] = False
+        # Mark raiser as having acted
+        self.played[player_id] = True
 
     def is_round_done(self):
         """
-        Returns True when the betting round is complete (everyone active has acted
-        and no active player with money owes a call). Also sets self.game_over=True
-        if only one player remains active.
+        Returns True when the betting round is complete (everyone in-hand who can act has acted
+        and no player that can act owes a call). Also sets self.game_over=True if only one player remains in-hand
+        OR if no players can act (we'll fast-forward to showdown in that case).
         """
+        # Count players still in the hand (not folded)
+        in_hand_count = sum(1 for a in self.active_players if a)
+        # Count players who can act (not folded AND not all-in)
+        can_act_count = sum(1 for i in range(self.num_players) if self.active_players[i] and self.can_act[i])
 
-        active_count = sum(1 for a in self.active_players if a)
-        if active_count <= 1:
+        # If only one player remains in-hand, round done -> immediate finish
+        if in_hand_count <= 1:
             self.game_over = True
-            print("Round done because only one active player remains.")
+            print("Round done because only one player remains in hand.")
             return True
-        
-        # Treat players who are active but have no chips as 'cannot act' (they are effectively all-in)
+
+        # If nobody can act (all remaining are all-in), finish the betting (fast-forward)
+        if can_act_count == 0:
+            self.game_over = True
+            print("Round done because no players can act (all remaining players are all-in).")
+            return True
+
+        # Otherwise check if all players who can act have either played
         action_finished = all(
-            (not self.active_players[i]) or self.played[i] or (self.money[i] == 0)
+            (not self.active_players[i]) or (not self.can_act[i]) or self.played[i]
             for i in range(self.num_players)
         )
-        print(f"Played flags: {self.played}, Active players: {self.active_players}, Money: {self.money}, Action finished: {action_finished}")
+        print(f"Played flags: {self.played}, In-hand: {self.active_players}, Can-act: {self.can_act}, Money: {self.money}, Action finished: {action_finished}")
 
         if not action_finished:
             return False
-        
-        # Are bets balanced among active players (i.e., no active player with money owes a call)?
+
+        # Are bets balanced among players who can act (i.e., no player with chips who still owes a call)?
         max_bet = max(self.bets) if any(self.bets) else 0
         for i in range(self.num_players):
-            if not self.active_players[i]:
+            if not self.active_players[i] or not self.can_act[i]:
                 continue
             to_call = max_bet - self.bets[i]
-            # if an active player still owes money and has chips to call, round isn't done
+            # if a player who can act still owes money and has chips to call, round isn't done
             if to_call > 0 and self.money[i] > 0:
                 print(f"Player {i+1} still can call {to_call} -> round not finished")
                 return False
 
-        # If we get here: everyone active has acted (or is all-in) AND no active player can or needs to call
+        # If we get here: everyone in-hand who can act has responded AND no actionable calls remain
         # Round finishes: reset played flags and current_bet for next betting round
         self.played = [False] * self.num_players
         self.current_bet = [0] * self.num_players
@@ -506,11 +580,11 @@ class PokerEnv:
 
         # Update money
         for i in range(self.num_players):
-            self.money[i] += total_won[i]
+            self.money[i] = total_won[i]
             money_change = [total_won[i] - self.bets[i] for i in range(len(total_won))]
-            print(f"{money_change}, {self.net}")
+            # print(f"{money_change}, {self.net}")
             self.net[i] += money_change[i]
-        
+
         # self.result = [self.net[i] - self.endowment*self.reload[i] for i in range(self.num_players)]
         print("\nCommunity cards:")
         if self.community_cards:
@@ -519,7 +593,8 @@ class PokerEnv:
         else:
             print("\nFinal Results:")
         for i in range(self.num_players):
-            print(f"Player {i+1}: Net: {self.net[i]}, Money = {self.money[i]} ({money_change[i]})")
+            print(f"Player {i+1}: Result: {self.net[i] + self.money[i] - 1000}, Net: {self.net[i]}, Money = {self.money[i]} ({money_change[i]})")
+            self.money[i] = self.endowment
 
 # def main(num_players):
 def play():
@@ -533,21 +608,19 @@ def play():
             env.next_round()
         env.show_state()
 
+        # if no one can act (all remaining are all-in), finish community cards and go to showdown
+        if sum(1 for i in range(env.num_players) if env.active_players[i] and env.can_act[i]) == 0:
+            print("No players can act — fast-forwarding remaining community cards to showdown.")
+            # fill community to river
+            while len(env.community_cards) < 5:
+                env.next_round()
+            break
+
         while not env.is_round_done():
             for pid in range(NUM_PLAYERS):
-                # if pid == 0:
-                #     action = 3
-                #     raise_amount=0
-                # if pid == 1:
-                #     action = 2
-                #     raise_amount=0
-                # if pid == 2:
-                #     decision = random.randint(0,1)
-                #     if decision == 0:
-                #         action = 2
-                #     elif decision == 1:
-                #         action = 0
-                #     raise_amount=0
+                if not env.active_players[pid] or not env.can_act[pid] or env.played[pid]:
+                    continue
+
                 action = random.randint(1, 3)
                 raise_amount = 0
                 if action == 3:
@@ -571,12 +644,16 @@ def play():
         if env.active_players.count(True) <= 1:
             break  # someone folded
     env.showdown()
+    print(f"Result Sum: {sum(env.result)}")
+    print(f"Small Blind: Player {(env.dealer_position + 1) % env.num_players + 1}, Big Blind: Player {(env.dealer_position + 2) % env.num_players + 1}")
+    # for i in range (env.num_players):
+    #     print(f"{env.active_players_str[i]}")
+    print(f"Action: {env.actions}")
 
-if __name__ == "__main__":
-    NUM_PLAYERS = 2
-    ENDOWMENT = 1000
+NUM_PLAYERS = 6
+ENDOWMENT = 1000
 
-    env = PokerEnv(NUM_PLAYERS, ENDOWMENT)
-    for hand in range(5):  # play 5 hands
-        print(f"\n=== HAND {hand+1} ===")
-        play()
+env = PokerEnv(NUM_PLAYERS, ENDOWMENT)
+for hand in range(100):  # play 5 hands
+    print(f"\n=== HAND {hand+1} ===")
+    play()
