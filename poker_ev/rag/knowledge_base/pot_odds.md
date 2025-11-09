@@ -1,5 +1,53 @@
 # Pot Odds and Expected Value
 
+## Complete Beginner Introduction
+
+### What Are Pot Odds in Simple Terms?
+
+Pot odds answer one question: **"Am I getting a good price to call this bet?"**
+
+Think of it like this:
+- The pot is offering you a certain price to call
+- If your chances of winning are better than the price, you should call
+- If your chances are worse than the price, you should fold
+
+**Real-world analogy**: Imagine a $100 lottery ticket with a $500 prize. Would you buy it?
+- If you have a 25% chance of winning: Expected value = 0.25 × $500 = $125 (GOOD deal!)
+- If you have a 10% chance of winning: Expected value = 0.10 × $500 = $50 (BAD deal!)
+
+Pot odds work the same way in poker.
+
+### The Two Numbers You Need
+
+**1. Pot Odds (Price)**: How much you risk vs. how much you can win
+**2. Equity (Chance)**: Your probability of winning the hand
+
+**Simple rule**: If your equity is higher than the pot odds requirement, call. Otherwise, fold.
+
+### Beginner Example
+
+**Situation**:
+- There's $80 in the pot
+- Your opponent bets $40
+- You need to call $40
+
+**Step 1**: Calculate the price
+- Total pot if you call: $80 + $40 + $40 = $160
+- You're risking: $40
+- Pot odds: $40 / $160 = 25%
+
+**Step 2**: Estimate your chance of winning
+- You have a flush draw (9 outs on the flop)
+- Using Rule of 4: 9 × 4 = 36% chance
+
+**Step 3**: Compare
+- Your chance (36%) vs Required chance (25%)
+- 36% > 25% → **CALL!**
+
+This is a profitable call because you win more often (36%) than the pot requires (25%).
+
+---
+
 ## What Are Pot Odds?
 
 **Pot odds** are the ratio between the current size of the pot and the cost of a contemplated call. They help determine whether calling a bet is mathematically profitable.
@@ -66,6 +114,115 @@ Quick mental math for equity:
 - **Bet**: $30
 - **Pot odds**: 37.5% (you need to win 37.5% to break even)
 - **Decision**: FOLD (17% < 37.5%)
+
+## Quick Start Guide for Beginners
+
+### Step-by-Step Decision Process
+
+**Before you call a bet, follow these 5 steps**:
+
+#### Step 1: What's in the pot?
+Look at the current pot size before the bet.
+
+**Example**: $100
+
+#### Step 2: How much is the bet?
+Note your opponent's bet amount.
+
+**Example**: $50
+
+#### Step 3: Calculate pot odds
+```
+Pot odds = Call amount / (Pot + Opponent's bet + Your call)
+```
+
+**Example**: $50 / ($100 + $50 + $50) = $50 / $200 = **25%**
+
+#### Step 4: Count your outs and calculate equity
+- Count cards that improve your hand
+- Use Rule of 2 or 4 to get equity percentage
+
+**Example**: 9 outs (flush draw) on flop → 9 × 4 = **36% equity**
+
+#### Step 5: Compare and decide
+- If equity > pot odds: **CALL**
+- If equity < pot odds: **FOLD**
+
+**Example**: 36% > 25% → **CALL!**
+
+### Common Pot Odds You'll See
+
+| Bet Size | Pot Odds | Quick Memory Aid |
+|----------|----------|------------------|
+| Half pot | 25% | "Need to win 1 in 4 times" |
+| 2/3 pot | 29% | "Need to win 1 in 3.5 times" |
+| Full pot | 33% | "Need to win 1 in 3 times" |
+| 1.5× pot | 38% | "Need to win 2 in 5 times" |
+| 2× pot | 40% | "Need to win 2 in 5 times" |
+
+### Beginner Practice Scenarios
+
+#### Scenario A
+- Pot: $60
+- Bet: $30
+- Your hand: Flush draw (36% equity on flop)
+- **Question**: Call or fold?
+
+<details>
+<summary>Answer</summary>
+
+**Pot odds**: $30 / ($60 + $30 + $30) = 25%
+**Your equity**: 36%
+**Decision**: **CALL** (36% > 25%)
+
+You're getting a great price!
+</details>
+
+#### Scenario B
+- Pot: $40
+- Bet: $60
+- Your hand: Gutshot (16% equity on flop)
+- **Question**: Call or fold?
+
+<details>
+<summary>Answer</summary>
+
+**Pot odds**: $60 / ($40 + $60 + $60) = 37.5%
+**Your equity**: 16%
+**Decision**: **FOLD** (16% < 37.5%)
+
+You're not getting the right price.
+</details>
+
+#### Scenario C
+- Pot: $100
+- Bet: $50
+- Your hand: Open-ended straight draw (32% equity on flop)
+- **Question**: Call or fold?
+
+<details>
+<summary>Answer</summary>
+
+**Pot odds**: $50 / ($100 + $50 + $50) = 25%
+**Your equity**: 32%
+**Decision**: **CALL** (32% > 25%)
+
+This is profitable.
+</details>
+
+### Common Beginner Questions
+
+**Q: What if I'm close to break-even (like 26% equity vs 25% pot odds)?**
+A: Call! Any positive edge is profitable in the long run. However, consider your position and implied odds too.
+
+**Q: Do I need to calculate this exactly every time?**
+A: Not exactly. With practice, you'll memorize common situations. Knowing that half-pot bets need 25% and flush draws are 36% is enough for most decisions.
+
+**Q: What if I don't know my exact equity?**
+A: Count your outs and use Rule of 2 and 4. It's close enough! Perfect accuracy isn't necessary.
+
+**Q: Should I always fold when pot odds say to?**
+A: Not always! Consider implied odds (future money you can win) and your position. But as a beginner, following pot odds strictly will keep you profitable.
 
 ## Implied Odds
 
