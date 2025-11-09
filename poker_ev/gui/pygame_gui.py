@@ -749,13 +749,16 @@ class PygameGUI:
         center_x = self.window_size[0] // 2
         center_y = self.window_size[1] // 2
 
-        # Display game over image (use image as-is, already at correct size)
+        # Display game over image scaled to 2x size
         if 'gameover' in self.button_sprites:
-            # Load the original image without scaling (image is already correct size)
+            # Load the original image and scale to 2x
             assets_dir = "poker_ev/assets"
             gameover_path = os.path.join(assets_dir, "buttons", "gameover.png")
             if os.path.exists(gameover_path):
-                gameover_sprite = pygame.image.load(gameover_path)
+                gameover_original = pygame.image.load(gameover_path)
+                # Scale to 2x size
+                gameover_sprite = pygame.transform.scale(gameover_original,
+                    (int(gameover_original.get_width() * 2), int(gameover_original.get_height() * 2)))
                 sprite_rect = gameover_sprite.get_rect(center=(center_x, center_y))
                 self.screen.blit(gameover_sprite, sprite_rect)
             else:
