@@ -301,8 +301,19 @@ class PokerTools:
                     # Two different ranks
                     # Sort by rank strength (A=14, K=13, Q=12, J=11, T=10, 9-2)
                     rank_values = {'a': 14, 'k': 13, 'q': 12, 'j': 11, 't': 10}
-                    val1 = rank_values.get(rank1.lower(), int(rank1))
-                    val2 = rank_values.get(rank2.lower(), int(rank2))
+
+                    # Get rank values with safe fallback for numeric ranks
+                    try:
+                        val1 = rank_values.get(rank1.lower(), int(rank1))
+                    except ValueError:
+                        # If rank1 is not a number (e.g., 'T' not in dict), default to 10
+                        val1 = 10
+
+                    try:
+                        val2 = rank_values.get(rank2.lower(), int(rank2))
+                    except ValueError:
+                        # If rank2 is not a number, default to 10
+                        val2 = 10
 
                     if val1 >= val2:
                         hand_lower = rank1 + rank2 + ('s' if is_suited else 'o')
