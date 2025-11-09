@@ -176,7 +176,7 @@ class ChatPanel:
             event: Pygame event
 
         Returns:
-            True if event was handled
+            True if event was handled (and should not be passed to game)
         """
         # Handle scrolling
         if event.type == pygame.MOUSEWHEEL:
@@ -186,16 +186,32 @@ class ChatPanel:
                 return True
 
         elif event.type == pygame.MOUSEBUTTONDOWN:
-            self.scroll_handler.handle_mouse_button_down(event)
+            mouse_pos = event.pos
+            # Only handle if click is within chat panel area
+            if self.rect.collidepoint(mouse_pos):
+                self.scroll_handler.handle_mouse_button_down(event)
+                # Also check chat input
+                return self.chat_input.handle_event(event) or True
+            return False
 
         elif event.type == pygame.MOUSEBUTTONUP:
             self.scroll_handler.handle_mouse_button_up(event)
+            # Let scrollbar always handle button up (for drag release)
+            # But don't consume the event unless we're dragging
+            if self.scroll_handler.is_dragging:
+                return True
 
         elif event.type == pygame.MOUSEMOTION:
             self.scroll_handler.handle_mouse_motion(event)
+            # Only consume motion if we're dragging scrollbar
+            if self.scroll_handler.is_dragging:
+                return True
 
-        # Handle input
-        return self.chat_input.handle_event(event)
+        # Handle input for keyboard events
+        if event.type == pygame.KEYDOWN:
+            return self.chat_input.handle_event(event)
+
+        return False
 
     def update(self):
         """Update animations (call every frame)"""

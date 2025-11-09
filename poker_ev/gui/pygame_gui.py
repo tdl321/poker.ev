@@ -228,7 +228,6 @@ class PygameGUI:
             state = self.game.get_game_state()
 
             # Handle events
-            self.event_handler.clear_buttons()
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
@@ -260,7 +259,8 @@ class PygameGUI:
                     action_str = self._action_to_string(action, amount)
                     self.set_message(f"Player {current}: {action_str}")
 
-            # Render
+            # Clear button registrations and render current frame
+            self.event_handler.clear_buttons()
             self.render(state)
 
             # Update chat panel (only if visible)
