@@ -582,17 +582,35 @@ Note: The game state above is automatically provided for your context. Use it to
             # Word buffer for word-by-word streaming (smoother than token-by-token)
             word_buffer = ""
 
+            # Track if we've seen tool calls (to know when final response starts)
+            seen_tool_calls = False
+            in_final_response = False
+
             # Stream response using native LangChain streaming
             for token, metadata in self.agent.stream({
                 "messages": [{"role": "user", "content": enhanced_query}]
             }, stream_mode="messages"):
 
-                # Skip tool calls - users don't need to see internal processing
+                # Detect when tool calls happen
                 if hasattr(token, 'tool_calls') and token.tool_calls:
+                    seen_tool_calls = True
+                    continue  # Skip tool call messages
+
+                # Skip ToolMessage and tool results
+                if token.__class__.__name__ in ['ToolMessage', 'ToolCall']:
                     continue
 
+                # If we've seen tool calls, the next AIMessage with content is the final response
+                if seen_tool_calls and hasattr(token, 'content') and token.content:
+                    in_final_response = True
+
+                # Only stream if:
+                # 1. No tools were used (stream everything), OR
+                # 2. We're in the final response after tools completed
+                should_stream = not seen_tool_calls or in_final_response
+
                 # Stream text content (word-by-word)
-                if hasattr(token, 'content') and token.content:
+                if should_stream and hasattr(token, 'content') and token.content:
                     content = token.content
 
                     # Handle string content
