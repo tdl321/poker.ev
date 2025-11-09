@@ -21,13 +21,14 @@ class ChatPanel:
     Combines scrolling, message rendering, and input handling.
     """
 
-    # Colors - monochrome retro theme (system.css inspired)
-    BG_DARK = (15, 15, 15)          # Almost black
-    BG_MEDIUM = (26, 26, 26)        # Dark gray
-    BG_PANEL = (35, 35, 35)         # Medium dark
-    ACCENT_PRIMARY = (0, 255, 100)  # Retro green (only bright color)
-    ACCENT_DIM = (0, 180, 70)       # Dimmed green
-    TEXT_PRIMARY = (220, 255, 220)  # Light green tint
+    # Colors - Terminal UI theme (black background, neon green)
+    BG_DARK = (0, 0, 0)             # Pure black terminal background
+    BG_MEDIUM = (0, 0, 0)           # Pure black
+    BG_PANEL = (0, 0, 0)            # Pure black
+    ACCENT_PRIMARY = (0, 255, 0)    # Neon green (terminal color)
+    ACCENT_DIM = (0, 200, 0)        # Dimmed neon green
+    TEXT_PRIMARY = (255, 255, 255)  # Pure white (AI responses)
+    TEXT_USER = (0, 255, 0)         # Neon green (user input)
 
     # Legacy aliases for compatibility
     PANEL_BG = BG_MEDIUM

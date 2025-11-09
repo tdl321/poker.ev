@@ -13,22 +13,13 @@ class ChatInput:
     Retro-styled text input field for chat
     """
 
-    # Colors - monochrome retro theme (system.css inspired)
-    BG_DARK = (15, 15, 15)          # Almost black
-    BG_MEDIUM = (26, 26, 26)        # Dark gray
-    BG_PANEL = (35, 35, 35)         # Medium dark
-    ACCENT_PRIMARY = (0, 255, 100)  # Retro green
-    ACCENT_DIM = (0, 180, 70)       # Dimmed green
-    TEXT_PRIMARY = (220, 255, 220)  # Light green tint
-    TEXT_SECONDARY = (100, 100, 100) # Gray
-
-    # Legacy aliases
-    BG_COLOR = BG_MEDIUM
-    BORDER_COLOR = ACCENT_DIM
-    BORDER_ACTIVE = ACCENT_PRIMARY
-    TEXT_COLOR = TEXT_PRIMARY
-    PLACEHOLDER_COLOR = TEXT_SECONDARY
-    CURSOR_COLOR = ACCENT_PRIMARY
+    # Colors - Terminal UI theme
+    BG_COLOR = (0, 0, 0)            # Pure black background
+    BORDER_COLOR = (0, 255, 0)      # Neon green border
+    BORDER_ACTIVE = (0, 255, 0)     # Neon green when active
+    TEXT_COLOR = (0, 255, 0)        # Neon green text
+    PLACEHOLDER_COLOR = (0, 150, 0) # Dimmed green placeholder
+    CURSOR_COLOR = (0, 255, 0)      # Neon green cursor
 
     def __init__(
         self,
@@ -220,18 +211,9 @@ class ChatInput:
         Args:
             screen: Pygame surface to draw on
         """
-        if not self.is_active:
-            # Inactive - subtle inset shadow
-            shadow_rect = self.rect.inflate(2, 2)
-            pygame.draw.rect(screen, self.BG_DARK, shadow_rect)
-            pygame.draw.rect(screen, self.BG_COLOR, self.rect)
-            pygame.draw.rect(screen, self.BORDER_COLOR, self.rect, 1)
-        else:
-            # Active - bright border with glow effect
-            glow_rect = self.rect.inflate(4, 4)
-            pygame.draw.rect(screen, self.ACCENT_DIM, glow_rect)
-            pygame.draw.rect(screen, self.BG_COLOR, self.rect)
-            pygame.draw.rect(screen, self.BORDER_ACTIVE, self.rect, 2)
+        # Terminal-style: simple neon green border, no shadows or glows
+        pygame.draw.rect(screen, self.BG_COLOR, self.rect)
+        pygame.draw.rect(screen, self.BORDER_COLOR, self.rect, 1)
 
         # Create clipping rect for text
         text_area = self.rect.inflate(-20, -10)

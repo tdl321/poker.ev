@@ -199,12 +199,12 @@ class PygameGUI:
             self.font_medium = pygame.font.Font(None, 28)
             self.font_large = pygame.font.Font(None, 42)
 
-        # Chat UI fonts (FindersKeepers - Geneva 9pt recreation)
+        # Chat UI fonts (FindersKeepers - Geneva recreation, scaled up for readability)
         finders_path = os.path.join(fonts_dir, "FindersKeepers.ttf")
         if os.path.exists(finders_path):
-            self.chat_font_small = pygame.font.Font(finders_path, 9)
-            self.chat_font_medium = pygame.font.Font(finders_path, 9)
-            self.chat_font_large = pygame.font.Font(finders_path, 12)
+            self.chat_font_small = pygame.font.Font(finders_path, 16)
+            self.chat_font_medium = pygame.font.Font(finders_path, 18)
+            self.chat_font_large = pygame.font.Font(finders_path, 24)
         else:
             # Fallback to Pixeloid for chat
             if os.path.exists(font_path):

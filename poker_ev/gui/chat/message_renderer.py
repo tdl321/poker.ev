@@ -14,20 +14,13 @@ class MessageRenderer:
     Renders chat messages with retro 8-bit styling
     """
 
-    # Colors - monochrome retro theme (system.css inspired)
-    BG_DARK = (15, 15, 15)          # Almost black
-    BG_MEDIUM = (26, 26, 26)        # Dark gray
-    BG_PANEL = (35, 35, 35)         # Medium dark
-    ACCENT_PRIMARY = (0, 255, 100)  # Retro green (only bright color)
-    ACCENT_DIM = (0, 180, 70)       # Dimmed green
-    TEXT_PRIMARY = (220, 255, 220)  # Light green tint
-    TEXT_SECONDARY = (150, 150, 150) # Gray
-
-    # Unified colors - distinguish by border style, not color
-    MESSAGE_BG = BG_PANEL
-    MESSAGE_BORDER = ACCENT_PRIMARY
-    MESSAGE_TEXT = TEXT_PRIMARY
-    TIMESTAMP_COLOR = TEXT_SECONDARY
+    # Colors - Terminal UI theme (no bubbles, minimal style)
+    BG_DARK = (0, 0, 0)              # Pure black terminal background
+    TEXT_AI = (255, 255, 255)        # Pure white for AI responses
+    TEXT_USER = (0, 255, 0)          # Neon green for user input
+    TEXT_SYSTEM = (0, 255, 0)        # Neon green for system messages
+    BORDER_COLOR = (0, 255, 0)       # Neon green borders
+    TIMESTAMP_COLOR = (0, 150, 0)    # Dimmed green for timestamps
 
     def __init__(self, font_small, font_medium, max_width: int = 350):
         """
@@ -81,10 +74,10 @@ class MessageRenderer:
         message: Dict,
         x: int,
         y: int,
-        show_timestamp: bool = True
+        show_timestamp: bool = False
     ) -> int:
         """
-        Render a single message bubble
+        Render a single message in terminal style (no bubbles)
 
         Args:
             screen: Pygame surface to draw on
@@ -100,67 +93,41 @@ class MessageRenderer:
         content = message.get('content', '')
         timestamp = message.get('timestamp', '')
 
-        # Unified colors - role determines alignment and border style only
-        bg_color = self.MESSAGE_BG
-        text_color = self.MESSAGE_TEXT
-
+        # Determine text color based on role
         if role == 'user':
+            text_color = self.TEXT_USER
             align_right = True
         elif role == 'assistant':
+            text_color = self.TEXT_AI
             align_right = False
         else:  # system
+            text_color = self.TEXT_SYSTEM
             align_right = False
 
         # Wrap text
         content_width = self.max_width - 2 * self.padding
         lines = self.wrap_text(content, content_width)
 
-        # Calculate bubble size
+        # Calculate message dimensions
         line_height = self.font_medium.get_height()
-        bubble_width = self.max_width
-        bubble_height = (
-            2 * self.padding +
-            len(lines) * line_height +
-            (len(lines) - 1) * self.line_spacing
-        )
+        message_height = len(lines) * (line_height + self.line_spacing)
 
-        if show_timestamp:
-            bubble_height += self.font_small.get_height() + 5
-
-        # Calculate bubble position
-        if align_right:
-            bubble_x = x + (350 - bubble_width) + 10  # Align to right
-        else:
-            bubble_x = x + 10  # Align to left
-
-        bubble_rect = pygame.Rect(bubble_x, y, bubble_width, bubble_height)
-
-        # Draw bubble background
-        pygame.draw.rect(screen, bg_color, bubble_rect)
-
-        # Draw border based on role (system.css style)
-        self._draw_retro_border(screen, bubble_rect, role)
-
-        # Draw content
+        # Terminal-style rendering: simple text, no backgrounds
         text_y = y + self.padding
         for line in lines:
             text_surface = self.font_medium.render(line, True, text_color)
-            screen.blit(text_surface, (bubble_x + self.padding, text_y))
-            text_y += line_height + self.line_spacing
-
-        # Draw timestamp
-        if show_timestamp and timestamp:
-            time_str = self._format_timestamp(timestamp)
-            time_surface = self.font_small.render(time_str, True, self.TIMESTAMP_COLOR)
 
             if align_right:
-                time_x = bubble_rect.right - time_surface.get_width() - self.padding
+                # User messages on right
+                text_x = x + self.max_width - text_surface.get_width() - self.padding
             else:
-                time_x = bubble_x + self.padding
+                # AI/System messages on left
+                text_x = x + self.padding
 
-            screen.blit(time_surface, (time_x, bubble_rect.bottom - time_surface.get_height() - 3))
+            screen.blit(text_surface, (text_x, text_y))
+            text_y += line_height + self.line_spacing
 
-        return bubble_height + 10  # Add spacing after message
+        return message_height + self.padding * 2  # Add spacing after message
 
     def _draw_retro_border(self, screen: pygame.Surface, rect: pygame.Rect, role: str):
         """
@@ -276,7 +243,7 @@ class MessageRenderer:
         animation_frame: int
     ) -> int:
         """
-        Render animated typing indicator
+        Render terminal-style typing indicator with blinking cursor
 
         Args:
             screen: Surface to draw on
@@ -287,34 +254,21 @@ class MessageRenderer:
         Returns:
             Height of indicator
         """
-        bubble_width = 80
-        bubble_height = 40
-        bubble_x = x + 10
-        bubble_rect = pygame.Rect(bubble_x, y, bubble_width, bubble_height)
+        # Terminal-style: just text with blinking cursor
+        typing_text = "..."
+        text_surface = self.font_medium.render(typing_text, True, self.TEXT_AI)
+        screen.blit(text_surface, (x + self.padding, y + self.padding))
 
-        # Draw bubble
-        pygame.draw.rect(screen, self.MESSAGE_BG, bubble_rect)
-        self._draw_retro_border(screen, bubble_rect, 'assistant')
+        # Blinking cursor (blink every 30 frames)
+        if animation_frame % 30 < 15:
+            cursor_x = x + self.padding + text_surface.get_width() + 2
+            cursor_y = y + self.padding
+            cursor_height = self.font_medium.get_height()
+            pygame.draw.line(screen, self.BORDER_COLOR,
+                           (cursor_x, cursor_y),
+                           (cursor_x, cursor_y + cursor_height), 2)
 
-        # Animated dots
-        dot_radius = 3
-        dot_spacing = 12
-        center_y = bubble_rect.centery
-        start_x = bubble_rect.centerx - dot_spacing
-
-        for i in range(3):
-            # Animate dots with bouncing effect
-            bounce_offset = 0
-            animation_offset = (animation_frame + i * 20) % 60
-            if animation_offset < 30:
-                bounce_offset = int(-5 * (animation_offset / 30))
-
-            dot_x = start_x + i * dot_spacing
-            dot_y = center_y + bounce_offset
-
-            pygame.draw.circle(screen, self.MESSAGE_TEXT, (dot_x, dot_y), dot_radius)
-
-        return bubble_height + 10
+        return self.font_medium.get_height() + self.padding * 2
 
 
 # Example usage
