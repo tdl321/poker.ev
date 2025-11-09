@@ -212,6 +212,15 @@ class PokerGame:
             return True
         return self.engine.players[0].chips <= 0
 
+    def reset_game(self):
+        """Reset the game to initial state with fresh chips"""
+        self.engine = TexasHoldEm(
+            buyin=self.buyin,
+            big_blind=self.big_blind,
+            small_blind=self.small_blind,
+            max_players=self.num_players
+        )
+
     def get_hand_history(self) -> str:
         """
         Get the current hand history

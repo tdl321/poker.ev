@@ -416,6 +416,10 @@ class PygameGUI:
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
                         running = False
+                    elif event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_r:
+                            # Restart the game
+                            self.reset_game()
 
                 self.render_game_over()
                 pygame.display.flip()
@@ -772,6 +776,17 @@ class PygameGUI:
             title_rect = title_text.get_rect(center=(center_x, center_y))
             self.screen.blit(title_text, title_rect)
 
+        # Display "R to Restart" text at bottom of screen
+        restart_text = self.font_large.render("R to Restart", True, self.GOLD_COLOR)
+        restart_rect = restart_text.get_rect(center=(center_x, self.window_size[1] - 100))
+
+        # Add background for better visibility
+        bg_rect = restart_rect.inflate(40, 20)
+        pygame.draw.rect(self.screen, (0, 0, 0, 200), bg_rect)
+        pygame.draw.rect(self.screen, self.GOLD_COLOR, bg_rect, 3)
+
+        self.screen.blit(restart_text, restart_rect)
+
     # ==================== Action Handlers ====================
 
     def handle_action_click(self, action: ActionType):
@@ -823,6 +838,24 @@ class PygameGUI:
         """
         self.message = message
         self.message_timer = duration
+
+    def reset_game(self):
+        """Reset the game to initial state"""
+        # Reset the game engine
+        self.game.reset_game()
+
+        # Reset GUI state
+        self.game_over = False
+        self.final_game_state = None
+        self.showing_raise_input = False
+        self.raise_amount = 0
+        self.raise_percentage = 0.0
+        self.message = ""
+        self.message_timer = 0
+
+        # Start a new hand
+        self.game.start_new_hand()
+        self.set_message("Game restarted! Good luck!")
 
     def toggle_chat(self):
         """Toggle chat panel visibility"""
