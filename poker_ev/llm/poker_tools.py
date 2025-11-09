@@ -27,16 +27,18 @@ class PokerTools:
     - Evaluate poker hands and positions
     """
 
-    def __init__(self, pinecone_store, game_context_provider=None):
+    def __init__(self, pinecone_store, game_context_provider=None, decision_tracker=None):
         """
         Initialize poker tools
 
         Args:
             pinecone_store: PineconePokerStore instance for RAG
             game_context_provider: GameContextProvider for current game state
+            decision_tracker: DecisionTracker instance for decision history (optional)
         """
         self.pinecone_store = pinecone_store
         self.game_context_provider = game_context_provider
+        self.decision_tracker = decision_tracker
 
     def create_tools(self) -> List:
         """
@@ -45,9 +47,10 @@ class PokerTools:
         Returns:
             List of LangChain tool functions
         """
-        # Create closures over self to access store and context provider
+        # Create closures over self to access store, context provider, and decision tracker
         pinecone_store = self.pinecone_store
         game_context_provider = self.game_context_provider
+        decision_tracker = self.decision_tracker
 
         @tool
         def search_poker_knowledge(query: str) -> str:
@@ -274,12 +277,73 @@ Please specify position:
 - Small Blind/SB (difficult)
 - Big Blind/BB (defensive)"""
 
+        @tool
+        def search_past_decisions(situation_description: str) -> str:
+            """Search your past poker decisions for similar situations. Input: Description of current situation (e.g., 'pocket jacks on button facing raise', 'top pair on flop with draw'). Returns: Similar past decisions with their outcomes and profitability. Use this to learn from your own playing history and see which actions worked best in similar spots."""
+            if not decision_tracker:
+                return "Decision history not available. This feature requires decision tracking to be enabled."
+
+            try:
+                # Search for similar pre-decisions
+                results = decision_tracker.search_similar_decisions(
+                    query=situation_description,
+                    decision_type='pre_decision',
+                    top_k=3
+                )
+
+                if not results:
+                    return "No similar past decisions found in your history. This might be a new situation for you!"
+
+                # Format results for LLM
+                response_parts = [f"Found {len(results)} similar decisions from your past:\n"]
+
+                for i, result in enumerate(results, 1):
+                    metadata = result.get('metadata', {})
+                    similarity = result.get('score', 0)
+
+                    # Extract pre-decision info
+                    your_cards = metadata.get('your_cards', [])
+                    if isinstance(your_cards, str):
+                        import json
+                        try:
+                            your_cards = json.loads(your_cards)
+                        except:
+                            your_cards = []
+
+                    position = metadata.get('position', 'unknown')
+                    pot = metadata.get('pot', 0)
+                    to_call = metadata.get('chips_to_call', 0)
+
+                    # Try to find corresponding post-decision
+                    decision_id = metadata.get('decision_id', '')
+
+                    # Format this decision
+                    response_parts.append(f"\n{i}. Similarity: {similarity:.2f}")
+                    response_parts.append(f"   Situation: {', '.join(your_cards)} in {position}")
+                    response_parts.append(f"   Pot: ${pot}, To call: ${to_call}")
+
+                    # Add description
+                    description = metadata.get('description', '')
+                    if description:
+                        response_parts.append(f"   Context: {description[:150]}...")
+
+                    # Note: Outcome info would be in post-decision record
+                    # For now, indicate that we found the situation
+                    response_parts.append(f"   (Check post-decision data for outcome)")
+
+                return '\n'.join(response_parts)
+
+            except Exception as e:
+                logger.error(f"Error searching past decisions: {e}")
+                return f"Could not search decision history: {str(e)}"
+
         tools = [
             search_poker_knowledge,
             get_game_state,
             calculate_pot_odds,
             estimate_hand_strength,
-            analyze_position
+            analyze_position,
+            search_past_decisions
         ]
 
         return tools

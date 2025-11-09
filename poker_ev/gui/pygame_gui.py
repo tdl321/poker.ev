@@ -41,7 +41,7 @@ class PygameGUI:
 
     def __init__(self, game: PokerGame, agent_manager: AgentManager,
                  window_size: tuple = (1400, 900), enable_chat: bool = True,
-                 enable_hand_history: bool = True):
+                 enable_hand_history: bool = True, enable_decision_tracking: bool = True):
         """
         Initialize the Pygame GUI
 
@@ -51,6 +51,7 @@ class PygameGUI:
             window_size: (width, height) of the window
             enable_chat: Enable AI poker advisor chat panel
             enable_hand_history: Enable automatic hand saving to Pinecone (default: True)
+            enable_decision_tracking: Enable decision-action tracking (default: True)
         """
         pygame.init()
 
@@ -83,13 +84,6 @@ class PygameGUI:
         self.message = ""
         self.message_timer = 0
 
-        # Chat panel (if enabled)
-        self.chat_panel = None
-        self.poker_advisor = None
-        self.chat_visible = True  # Chat panel visibility toggle
-        if self.enable_chat:
-            self._init_chat_panel()
-
         # Player position on table (positions around ellipse)
         self.player_positions = self._calculate_player_positions()
 
@@ -103,6 +97,22 @@ class PygameGUI:
 
         if self.enable_hand_history:
             self._init_hand_history()
+
+        # Decision tracking (if enabled) - MUST be before chat panel
+        self.enable_decision_tracking = enable_decision_tracking
+        self.decision_tracker = None
+        self.current_decision_id = None
+        self.pending_action_type = None  # Track action before raise UI shows
+
+        if self.enable_decision_tracking:
+            self._init_decision_tracking()
+
+        # Chat panel (if enabled) - initialized AFTER decision tracking
+        self.chat_panel = None
+        self.poker_advisor = None
+        self.chat_visible = True  # Chat panel visibility toggle
+        if self.enable_chat:
+            self._init_chat_panel()
 
     def _init_chat_panel(self):
         """Initialize the AI poker advisor chat panel"""
@@ -128,7 +138,8 @@ class PygameGUI:
         try:
             game_context = GameContextProvider(self.game)
             self.poker_advisor = PokerAdvisor(
-                game_context_provider=game_context
+                game_context_provider=game_context,
+                decision_tracker=self.decision_tracker  # Will be None if tracking disabled
             )
             self.set_message("Poker Advisor Ready! Press Tab to toggle panel")
         except Exception as e:
@@ -184,6 +195,22 @@ class PygameGUI:
             self.enable_hand_history = False
             self.hand_history = None
 
+    def _init_decision_tracking(self):
+        """Initialize decision tracker for action-by-action storage"""
+        try:
+            from poker_ev.memory.decision_tracker import DecisionTracker
+            # Share Pinecone store with hand history if available
+            if self.hand_history and hasattr(self.hand_history, 'store'):
+                self.decision_tracker = DecisionTracker(pinecone_store=self.hand_history.store)
+            else:
+                self.decision_tracker = DecisionTracker()
+            print("✅ Decision tracker initialized - actions will be tracked to Pinecone")
+        except Exception as e:
+            print(f"⚠️  Decision tracker unavailable: {e}")
+            print("   Decisions will not be tracked. Set PINECONE_API_KEY in .env to enable.")
+            self.enable_decision_tracking = False
+            self.decision_tracker = None
+
     def _format_card(self, card_obj) -> str:
         """Format a card object to readable string"""
         rank_map = {
@@ -198,9 +225,6 @@ class PygameGUI:
 
     def _track_hand_start(self, state: dict):
         """Track when a new hand starts"""
-        if not self.enable_hand_history or not self.hand_history:
-            return
-
         # Only track if hand is active and we haven't tracked this hand yet
         if state['hand_active'] and self.current_hand_id is None:
             import time
@@ -215,6 +239,11 @@ class PygameGUI:
             }
 
             print(f"\n📋 Hand started: {self.current_hand_id}")
+
+            # Initialize decision tracking for this hand
+            if self.enable_decision_tracking and self.decision_tracker:
+                self.decision_tracker.start_hand(self.current_hand_id)
+                print(f"   Decision tracking started for hand")
 
     def _track_hand_end(self, state: dict):
         """Track when a hand ends and save to Pinecone"""
@@ -254,6 +283,20 @@ class PygameGUI:
                 print(f"❌ Error saving hand: {e}")
                 import traceback
                 traceback.print_exc()
+
+            # Finalize decisions with hand outcome
+            if self.enable_decision_tracking and self.decision_tracker:
+                try:
+                    outcome = hand_data['outcome']
+                    profit = hand_data['profit']
+                    self.decision_tracker.finalize_hand_decisions(
+                        hand_id=self.current_hand_id,
+                        outcome=outcome,
+                        profit=profit
+                    )
+                    print(f"✅ Decision outcomes updated")
+                except Exception as e:
+                    print(f"⚠️  Could not finalize decisions: {e}")
 
             # Reset hand tracking
             self.current_hand_id = None
@@ -311,6 +354,96 @@ class PygameGUI:
         }
 
         return hand_data
+
+    def _save_pre_decision(self, state: dict, pending_action: ActionType = None):
+        """
+        Save pre-decision state (BEFORE player acts)
+
+        Args:
+            state: Current game state
+            pending_action: Action that will be taken (for raise, this is None until confirmed)
+        """
+        if not self.enable_decision_tracking or not self.decision_tracker:
+            return
+
+        try:
+            # Generate decision ID
+            decision_id = self.decision_tracker.generate_decision_id()
+            self.current_decision_id = decision_id
+
+            # Get player cards
+            players = state.get('players', [])
+            if not players:
+                return
+
+            player_0 = players[0]
+            your_cards = []
+            if player_0.get('hand'):
+                your_cards = [self._format_card(c) for c in player_0['hand']]
+
+            # Determine position (simplified - could use dealer button)
+            position = 'Button'  # TODO: Calculate actual position
+
+            # Track previous actions this round (simplified)
+            previous_actions = []
+            # TODO: Extract actual action history from game state
+
+            # Save pre-decision
+            self.decision_tracker.save_pre_decision(
+                decision_id=decision_id,
+                game_state=state,
+                your_cards=your_cards,
+                position=position,
+                previous_actions=previous_actions
+            )
+
+            print(f"   📊 Pre-decision saved: {decision_id}")
+
+        except Exception as e:
+            print(f"⚠️  Could not save pre-decision: {e}")
+
+    def _save_post_decision(self, action: ActionType, amount: int):
+        """
+        Save post-decision state (AFTER player acts)
+
+        Args:
+            action: Action taken
+            amount: Amount of bet/raise
+        """
+        if not self.enable_decision_tracking or not self.decision_tracker:
+            return
+
+        if not self.current_decision_id:
+            print("⚠️  No pre-decision to link post-decision to")
+            return
+
+        try:
+            # Get updated game state
+            state = self.game.get_game_state()
+            players = state.get('players', [])
+            if not players:
+                return
+
+            player_0 = players[0]
+            chips_after = player_0.get('chips', 0)
+            pot_after = state.get('pot', 0)
+
+            # Save post-decision
+            self.decision_tracker.save_post_decision(
+                decision_id=self.current_decision_id,
+                action=action,
+                amount=amount,
+                chips_after=chips_after,
+                pot_after=pot_after
+            )
+
+            print(f"   ✅ Post-decision saved: {self._action_to_string(action, amount)}")
+
+            # Clear current decision
+            self.current_decision_id = None
+
+        except Exception as e:
+            print(f"⚠️  Could not save post-decision: {e}")
 
     def load_assets(self):
         """Load all assets from pyker"""
@@ -803,14 +936,23 @@ class PygameGUI:
 
     def handle_action_click(self, action: ActionType):
         """Handle action button click from user"""
+        # Get current game state
+        state = self.game.get_game_state()
+
         if action == ActionType.RAISE:
+            # SAVE PRE-DECISION STATE (before raise UI)
+            self._save_pre_decision(state, pending_action=action)
+            self.pending_action_type = action
+
             # Show raise input
             print("[DEBUG] RAISE button clicked - showing raise UI")
             self.showing_raise_input = True
             self.raise_percentage = 0.0
         else:
+            # SAVE PRE-DECISION STATE
+            self._save_pre_decision(state, pending_action=action)
+
             # Execute action immediately
-            state = self.game.get_game_state()
             amount = 0
             if action == ActionType.CALL:
                 amount = state['chips_to_call']
@@ -818,6 +960,9 @@ class PygameGUI:
             success = self.game.take_action(action, amount)
 
             if success:
+                # SAVE POST-DECISION STATE
+                self._save_post_decision(action, amount)
+
                 action_str = self._action_to_string(action, amount)
                 self.set_message(f"You: {action_str}")
 
@@ -825,15 +970,26 @@ class PygameGUI:
         """Confirm raise amount and execute"""
         print(f"[DEBUG] confirm_raise called - raise_amount=${self.raise_amount}")
         self.showing_raise_input = False
+
+        # Note: Pre-decision was already saved when RAISE button was clicked
         success = self.game.take_action(ActionType.RAISE, self.raise_amount)
 
         print(f"[DEBUG] Raise action success={success}")
         if success:
+            # SAVE POST-DECISION STATE
+            self._save_post_decision(ActionType.RAISE, self.raise_amount)
+
             self.set_message(f"You: Raise to ${self.raise_amount}")
 
     def cancel_raise(self):
         """Cancel raise input"""
         self.showing_raise_input = False
+
+        # Clear pending decision (user canceled, no action taken)
+        if self.current_decision_id:
+            print("   ⚠️  Raise canceled - pre-decision not linked to action")
+            self.current_decision_id = None
+        self.pending_action_type = None
 
     def update_raise_amount(self, percentage: float):
         """Update raise amount from slider"""

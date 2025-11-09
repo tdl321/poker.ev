@@ -110,13 +110,15 @@ You have access to these tools:
 - calculate_pot_odds: Calculate pot odds (input: "pot_size,bet_to_call")
 - estimate_hand_strength: Estimate hand strength (input: hand description like "pocket aces")
 - analyze_position: Analyze position advantage (input: position name like "button" or "big blind")
+- search_past_decisions: Search YOUR past decisions in similar situations - shows what actions you took before and their outcomes
 
 When to use tools:
 - If user asks about their current hand → use get_game_state first
 - If user asks about general poker concepts → use search_poker_knowledge
-- If user asks "should I call?" → use calculate_pot_odds
+- If user asks "should I call?" → use calculate_pot_odds AND search_past_decisions to see what worked before
 - If user asks about a specific hand type → use estimate_hand_strength
 - If user asks about position → use analyze_position
+- If user wants to know what they did in similar spots → use search_past_decisions
 """
 
     def __init__(
@@ -125,6 +127,7 @@ When to use tools:
         api_key: Optional[str] = None,
         vector_store: Optional[object] = None,
         game_context_provider: Optional[GameContextProvider] = None,
+        decision_tracker: Optional[object] = None,
         temperature: float = 0.7,
         index_name: str = "poker-knowledge"
     ):
@@ -137,6 +140,7 @@ When to use tools:
             api_key: DeepSeek API key (or set DEEPSEEK_API_KEY env var)
             vector_store: VectorStoreWrapper for RAG (creates default if None)
             game_context_provider: GameContextProvider for current game state
+            decision_tracker: DecisionTracker for decision history (optional)
             temperature: LLM temperature (0.0-1.0)
             index_name: Pinecone index name
         """
@@ -209,6 +213,9 @@ When to use tools:
         # Game context provider
         self.game_context_provider = game_context_provider
 
+        # Decision tracker
+        self.decision_tracker = decision_tracker
+
         # Load knowledge base if store is empty
         self._maybe_load_knowledge_base()
 
@@ -216,7 +223,8 @@ When to use tools:
         logger.info("Creating poker advisor tools...")
         poker_tools = PokerTools(
             pinecone_store=self.vector_store,
-            game_context_provider=self.game_context_provider
+            game_context_provider=self.game_context_provider,
+            decision_tracker=self.decision_tracker
         )
         self.tools = poker_tools.create_tools()
         logger.info(f"Created {len(self.tools)} tools: {[t.name for t in self.tools]}")
