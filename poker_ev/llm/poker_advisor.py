@@ -336,7 +336,7 @@ When to use tools:
         use_rag: bool = True
     ) -> Generator[str, None, None]:
         """
-        Get poker advice with TRUE streaming response from DeepSeek
+        Get poker advice with streaming response
 
         Args:
             user_query: User's question
@@ -344,36 +344,42 @@ When to use tools:
             use_rag: Whether to use RAG (unused - agent uses search_poker_knowledge tool)
 
         Yields:
-            Text chunks as they arrive from DeepSeek API in real-time
+            Text chunks for smooth streaming display
         """
         try:
-            # Stream response from agent using LangChain's streaming API
-            for chunk in self.agent.stream({
+            # Get response from agent (agents with tools need to run synchronously)
+            result = self.agent.invoke({
                 "messages": [{"role": "user", "content": user_query}]
-            }):
-                # Extract text content from streaming chunks
-                if isinstance(chunk, dict):
-                    # Handle agent output
-                    if "agent" in chunk and "messages" in chunk["agent"]:
-                        for message in chunk["agent"]["messages"]:
-                            if hasattr(message, "content") and message.content:
-                                yield message.content
-                            elif isinstance(message, dict) and "content" in message:
-                                yield message["content"]
-                    # Handle direct output
-                    elif "messages" in chunk:
-                        for message in chunk["messages"]:
-                            if hasattr(message, "content") and message.content:
-                                yield message.content
-                            elif isinstance(message, dict) and "content" in message:
-                                yield message["content"]
-                elif hasattr(chunk, "content"):
-                    # Direct message chunk
-                    if chunk.content:
-                        yield chunk.content
+            })
+
+            # Extract final text answer
+            response_text = ""
+            if isinstance(result, dict) and "messages" in result:
+                for message in reversed(result["messages"]):
+                    if hasattr(message, "content") and message.content:
+                        if isinstance(message.content, str) and not message.content.strip().startswith("{"):
+                            response_text = message.content
+                            break
+                    elif isinstance(message, dict) and "content" in message:
+                        content = message.get("content", "")
+                        if content and not content.strip().startswith("{"):
+                            response_text = content
+                            break
+
+            if not response_text:
+                response_text = str(result)
+
+            # Stream response character by character for smooth display
+            import time
+            for char in response_text:
+                yield char
+                time.sleep(0.01)  # Small delay for smooth streaming effect
+
         except Exception as e:
-            logger.error(f"Error streaming advice: {e}")
-            yield f"Sorry, I encountered an error: {str(e)}"
+            logger.error(f"Error streaming advice: {e}", exc_info=True)
+            error_msg = f"Sorry, I encountered an error: {str(e)}"
+            for char in error_msg:
+                yield char
 
     def quick_tip(self, situation: str) -> str:
         """
