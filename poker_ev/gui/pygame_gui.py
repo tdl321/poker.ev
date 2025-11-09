@@ -950,6 +950,13 @@ class PygameGUI:
             status_text = self.font_medium.render("ALL IN", True, self.GOLD_COLOR)
             self.screen.blit(status_text, (x - 40, y + box_height//2 + 10))
 
+        # Crown for last round winner
+        if self.last_round_winner is not None and player['id'] == self.last_round_winner:
+            # Position crown at top center of player box
+            crown_x = x
+            crown_y = y - box_height//2 - 25  # Above the box
+            self.render_crown(crown_x, crown_y, size=40)
+
     def render_phase(self, phase: HandPhase):
         """Render the current hand phase"""
         phase_str = str(phase).replace("HandPhase.", "")
@@ -1105,6 +1112,60 @@ class PygameGUI:
 
         # Draw score
         self.screen.blit(score_surface, (x, y))
+
+    def render_crown(self, x: int, y: int, size: int = 30):
+        """
+        Render a crown at the specified position
+
+        Args:
+            x: Center x position
+            y: Top y position
+            size: Size of the crown (width)
+        """
+        # Crown color (gold)
+        crown_color = self.GOLD_COLOR
+        crown_outline = (200, 170, 0)  # Darker gold for outline
+
+        # Crown dimensions
+        crown_width = size
+        crown_height = int(size * 0.6)
+
+        # Calculate crown points for a simple crown shape with 3 peaks
+        base_y = y + crown_height
+        peak_height = int(crown_height * 0.4)
+
+        # Crown shape points (polygon)
+        points = [
+            (x - crown_width // 2, base_y),  # Bottom left
+            (x - crown_width // 2, y + peak_height),  # Left peak base
+            (x - crown_width // 3, y),  # Left peak top
+            (x - crown_width // 6, y + peak_height),  # Left valley
+            (x, y - int(peak_height * 0.3)),  # Center peak top (tallest)
+            (x + crown_width // 6, y + peak_height),  # Right valley
+            (x + crown_width // 3, y),  # Right peak top
+            (x + crown_width // 2, y + peak_height),  # Right peak base
+            (x + crown_width // 2, base_y),  # Bottom right
+        ]
+
+        # Draw crown with outline
+        pygame.draw.polygon(self.screen, crown_color, points)
+        pygame.draw.polygon(self.screen, crown_outline, points, 2)
+
+        # Add decorative circles (jewels) on each peak
+        jewel_radius = max(3, size // 10)
+        jewel_color = (255, 50, 50)  # Red jewel
+
+        # Left jewel
+        pygame.draw.circle(self.screen, jewel_color, (x - crown_width // 3, y), jewel_radius)
+        pygame.draw.circle(self.screen, crown_outline, (x - crown_width // 3, y), jewel_radius, 1)
+
+        # Center jewel
+        pygame.draw.circle(self.screen, jewel_color, (x, y - int(peak_height * 0.3)), jewel_radius)
+        pygame.draw.circle(self.screen, crown_outline, (x, y - int(peak_height * 0.3)), jewel_radius, 1)
+
+        # Right jewel
+        pygame.draw.circle(self.screen, jewel_color, (x + crown_width // 3, y), jewel_radius)
+        pygame.draw.circle(self.screen, crown_outline, (x + crown_width // 3, y), jewel_radius, 1)
 
     def _complete_board_for_showdown(self, state: dict) -> list:
         """
@@ -1285,6 +1346,7 @@ class PygameGUI:
         self.raise_percentage = 0.0
         self.message = ""
         self.message_timer = 0
+        self.last_round_winner = None
 
         # Start a new hand
         self.game.start_new_hand()
