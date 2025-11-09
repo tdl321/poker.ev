@@ -268,27 +268,26 @@ class ChatInput:
 
         # Get character at cursor position (or space if at end)
         char_at_cursor = self.text[self.cursor_pos] if self.cursor_pos < len(self.text) else " "
-        char_width = self.font.size(char_at_cursor)[0]
+        char_surface = self.font.render(char_at_cursor, True, self.BG_COLOR)
+        char_width = char_surface.get_width()
+        char_height = char_surface.get_height()
 
         # Cursor position on screen (after prompt)
         cursor_screen_x = self.rect.left + 10 + self.prompt_width + cursor_x
-        cursor_y_top = self.rect.top + 8
-        cursor_y_bottom = self.rect.bottom - 8
-        cursor_height = cursor_y_bottom - cursor_y_top
+        cursor_screen_y = self.rect.centery - char_height // 2
 
-        # Draw block cursor (filled rectangle)
+        # Draw block cursor (filled rectangle matching character size)
         cursor_rect = pygame.Rect(
             cursor_screen_x,
-            cursor_y_top,
+            cursor_screen_y,
             char_width,
-            cursor_height
+            char_height
         )
         pygame.draw.rect(screen, self.CURSOR_COLOR, cursor_rect)
 
         # Draw the character in inverted color (black on green)
         if self.cursor_pos < len(self.text):
-            char_surface = self.font.render(char_at_cursor, True, self.BG_COLOR)
-            screen.blit(char_surface, (cursor_screen_x, self.rect.centery - char_surface.get_height() // 2))
+            screen.blit(char_surface, (cursor_screen_x, cursor_screen_y))
 
 
 # Example usage
