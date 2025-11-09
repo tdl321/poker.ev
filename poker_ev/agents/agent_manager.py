@@ -229,16 +229,32 @@ class AgentManager:
         else:
             model_dir = Path(model_dir)
 
-        # Risk profiles with their model file patterns
-        risk_profiles = ['neutral', 'averse', 'seeking']
+        # Resolve to absolute path and verify it exists
+        model_dir = model_dir.resolve()
+        if not model_dir.exists():
+            print(f"⚠️  Warning: Model directory not found: {model_dir}")
+            print(f"   Creating directory...")
+            model_dir.mkdir(parents=True, exist_ok=True)
 
-        # Generate random mix of 5 agents from 3 risk profiles
-        # This will create a random combination that adds up to 5 agents
+        print(f"\n📁 Model directory: {model_dir}")
+
+        # Find ALL available trained model files
+        all_model_files = list(model_dir.glob("poker_agent_*.pt"))
+
+        if not all_model_files:
+            raise FileNotFoundError(f"No trained model files found in {model_dir}")
+
+        print(f"\n🎲 Found {len(all_model_files)} trained models:")
+        for model_file in all_model_files:
+            print(f"   • {model_file.name}")
+
+        # Generate random selection of models for AI players
         ai_player_count = num_players - 1  # Exclude human player
-        ai_risk_profiles = random.choices(risk_profiles, k=ai_player_count)
 
-        print(f"\n🎲 Setting up {ai_player_count} neural agents with random risk profiles:")
-        print(f"   Distribution: {dict(zip(*list(zip(*[(p, ai_risk_profiles.count(p)) for p in set(ai_risk_profiles)]))))}")
+        # Randomly select models (with replacement, so same model can be used multiple times)
+        selected_models = random.choices(all_model_files, k=ai_player_count)
+
+        print(f"\n🎮 Setting up {ai_player_count} neural agents with randomly selected models:")
 
         # Assign agents to players
         agent_index = 0
@@ -246,21 +262,20 @@ class AgentManager:
             if player_id == human_player:
                 continue  # Skip human player
 
-            risk_profile = ai_risk_profiles[agent_index]
+            # Get the randomly selected model for this player
+            model_file = selected_models[agent_index]
+            model_path = str(model_file.resolve())
 
-            # Look for trained model file
+            # Extract risk profile from filename
             # Pattern: poker_agent_{id}_{risk_profile}.pt
-            # Try to find any model with this risk profile
-            model_files = list(model_dir.glob(f"poker_agent_*_{risk_profile}.pt"))
-
-            if model_files:
-                # Use the first matching model file
-                model_path = str(model_files[0])
-                print(f"   Player {player_id}: {risk_profile:8s} <- {model_files[0].name}")
+            # Example: poker_agent_6_seeking.pt -> seeking
+            filename_parts = model_file.stem.split('_')
+            if len(filename_parts) >= 3:
+                risk_profile = filename_parts[-1]  # Last part is risk profile
             else:
-                # Fallback: use untrained model (will warn in neural_agent.py)
-                model_path = str(model_dir / f"poker_agent_0_{risk_profile}.pt")
-                print(f"   Player {player_id}: {risk_profile:8s} (untrained)")
+                risk_profile = 'neutral'  # Fallback
+
+            print(f"   Player {player_id}: {risk_profile:8s} <- {model_file.name}")
 
             # Register neural agent
             self.register_neural_agent(
