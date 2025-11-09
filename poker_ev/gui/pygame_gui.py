@@ -754,6 +754,7 @@ class PygameGUI:
         center_y = self.window_size[1] // 2
 
         # Display game over image scaled to 2x size
+        gameover_bottom_y = center_y  # Track bottom of game over element
         if 'gameover' in self.button_sprites:
             # Load the original image and scale to 2x
             assets_dir = "poker_ev/assets"
@@ -765,20 +766,23 @@ class PygameGUI:
                     (int(gameover_original.get_width() * 2), int(gameover_original.get_height() * 2)))
                 sprite_rect = gameover_sprite.get_rect(center=(center_x, center_y))
                 self.screen.blit(gameover_sprite, sprite_rect)
+                gameover_bottom_y = sprite_rect.bottom
             else:
                 # Fallback to pre-loaded sprite (which has 3x scaling from load_assets)
                 gameover_sprite = self.button_sprites['gameover']
                 sprite_rect = gameover_sprite.get_rect(center=(center_x, center_y))
                 self.screen.blit(gameover_sprite, sprite_rect)
+                gameover_bottom_y = sprite_rect.bottom
         else:
             # Fallback text if image not found
             title_text = self.font_large.render("GAME OVER", True, self.RED_COLOR)
             title_rect = title_text.get_rect(center=(center_x, center_y))
             self.screen.blit(title_text, title_rect)
+            gameover_bottom_y = title_rect.bottom
 
-        # Display "R to Restart" text at bottom of screen
+        # Display "R to Restart" text directly under game over image
         restart_text = self.font_large.render("R to Restart", True, self.GOLD_COLOR)
-        restart_rect = restart_text.get_rect(center=(center_x, self.window_size[1] - 100))
+        restart_rect = restart_text.get_rect(center=(center_x, gameover_bottom_y + 60))
 
         # Add background for better visibility
         bg_rect = restart_rect.inflate(40, 20)
