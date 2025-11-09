@@ -88,6 +88,9 @@ class PygameGUI:
         # Session score tracking (cumulative net gains/losses)
         self.session_score = 0
 
+        # Winner tracking (for crown display)
+        self.last_round_winner = None
+
         # Player position on table (positions around ellipse)
         self.player_positions = self._calculate_player_positions()
 
@@ -263,6 +266,7 @@ class PygameGUI:
             }
 
             print(f"\n📋 Hand started: {self.current_hand_id}")
+            print(f"   Player 0 starting chips: ${self.player_starting_chips.get(0, 'N/A')}")
 
             # STAGE 1: Save initial hand state to Pinecone (in-progress)
             if self.enable_hand_history and self.hand_history:
@@ -315,6 +319,14 @@ class PygameGUI:
         # Detect hand end transition: was active (True), now inactive (False)
         hand_just_ended = (self._last_hand_active_state == True and current_active == False)
 
+        # Debug: Log ALL state tracking
+        print(f"[DEBUG SCORE] _track_hand_end called:")
+        print(f"  - last_state: {self._last_hand_active_state}")
+        print(f"  - current_state: {current_active}")
+        print(f"  - hand_just_ended: {hand_just_ended}")
+        print(f"  - player_starting_chips: {self.player_starting_chips}")
+        print(f"  - current session_score: ${self.session_score:+d}")
+
         # Debug: Log state transitions
         if self._last_hand_active_state is not None and self._last_hand_active_state != current_active:
             print(f"🔄 Hand state transition: {self._last_hand_active_state} -> {current_active}")
@@ -323,13 +335,43 @@ class PygameGUI:
 
         # Update session score when hand ends (works even if hand_history is disabled)
         if hand_just_ended:
+            # Determine winner by finding player with most profit
+            max_profit = None
+            winner_id = None
+            for player_id, player in enumerate(state.get('players', [])):
+                if player.get('in_game'):
+                    start_chips = self.player_starting_chips.get(player_id)
+                    if start_chips is not None:
+                        end_chips = player.get('chips', start_chips)
+                        profit = end_chips - start_chips
+                        if max_profit is None or profit > max_profit:
+                            max_profit = profit
+                            winner_id = player_id
+
+            # Store winner for crown display
+            if winner_id is not None:
+                self.last_round_winner = winner_id
+                print(f"👑 Round winner: Player {winner_id}")
+
+            # Update session score for player 0
             if self.player_starting_chips.get(0) is not None:
                 player_0_end = state.get('players', [{}])[0]
                 start_chips = self.player_starting_chips.get(0, 1000)
                 end_chips = player_0_end.get('chips', start_chips)
                 profit = end_chips - start_chips
+
+                print(f"[DEBUG SCORE] Updating session score:")
+                print(f"  - Start chips: ${start_chips}")
+                print(f"  - End chips: ${end_chips}")
+                print(f"  - Profit: ${profit:+d}")
+                print(f"  - Old session score: ${self.session_score:+d}")
+
                 self.session_score += profit
+
+                print(f"  - New session score: ${self.session_score:+d}")
                 print(f"💰 Hand profit: ${profit:+d} | Session Score: ${self.session_score:+d}")
+            else:
+                print(f"[DEBUG SCORE] ERROR: player_starting_chips[0] is None! Cannot update session score.")
 
         # Update tracking state for next iteration
         self._last_hand_active_state = current_active
