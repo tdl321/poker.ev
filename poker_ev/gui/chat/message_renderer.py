@@ -450,7 +450,7 @@ class MessageRenderer:
         show_timestamp: bool = False
     ) -> int:
         """
-        Render a single message in terminal style (no bubbles)
+        Render a single message in terminal style with markdown support
 
         Args:
             screen: Pygame surface to draw on
@@ -477,19 +477,22 @@ class MessageRenderer:
             text_color = self.TEXT_SYSTEM
             align_right = False
 
-        # Wrap text
+        # Parse markdown into styled segments
+        styled_segments = self.parse_markdown(content)
+
+        # Wrap styled segments into lines
         content_width = self.max_width - 2 * self.padding
-        lines = self.wrap_text(content, content_width)
+        wrapped_lines = self._wrap_styled_segments(styled_segments, content_width)
 
         # Calculate message dimensions
         line_height = self.font_medium.get_height()
-        message_height = len(lines) * (line_height + self.line_spacing)
+        total_height = 0
 
-        # Terminal-style rendering: simple text with mixed fonts for symbols
+        # Render each line with styled segments
         text_y = y + self.padding
-        for line in lines:
+        for line_segments in wrapped_lines:
             # Calculate line width for alignment
-            line_width = self._get_mixed_font_width(line)
+            line_width = sum(self._get_styled_segment_width(text, style) for text, style in line_segments)
 
             if align_right:
                 # User messages on right
@@ -498,11 +501,73 @@ class MessageRenderer:
                 # AI/System messages on left
                 text_x = x + self.padding
 
-            # Render line with mixed fonts (retro + Unicode)
-            self._render_mixed_font_line(screen, line, text_x, text_y, text_color)
-            text_y += line_height + self.line_spacing
+            # Render each segment in the line
+            current_x = text_x
+            for segment_text, segment_style in line_segments:
+                if segment_text == '\n':
+                    continue
+                width = self._render_styled_segment(
+                    screen, segment_text, segment_style,
+                    current_x, text_y, text_color
+                )
+                current_x += width
 
-        return message_height + self.padding * 2  # Add spacing after message
+            text_y += line_height + self.line_spacing
+            total_height += line_height + self.line_spacing
+
+        return total_height + self.padding * 2  # Add spacing after message
+
+    def _wrap_styled_segments(self, segments: List[Tuple[str, str]], max_width: int) -> List[List[Tuple[str, str]]]:
+        """
+        Wrap styled text segments into lines
+
+        Args:
+            segments: List of (text, style) tuples
+            max_width: Maximum width in pixels
+
+        Returns:
+            List of lines, each containing styled segments
+        """
+        lines = []
+        current_line = []
+        current_width = 0
+
+        for text, style in segments:
+            # Handle explicit line breaks
+            if text == '\n':
+                if current_line or not lines:
+                    lines.append(current_line if current_line else [('', self.STYLE_NORMAL)])
+                current_line = []
+                current_width = 0
+                continue
+
+            # Split text into words
+            words = text.split(' ')
+
+            for word_idx, word in enumerate(words):
+                # Add space before word if not first word in segment
+                if word_idx > 0:
+                    word = ' ' + word
+                elif current_line and current_line[-1][0] and not current_line[-1][0].endswith(' '):
+                    word = ' ' + word
+
+                word_width = self._get_styled_segment_width(word, style)
+
+                if current_width + word_width <= max_width or not current_line:
+                    # Add word to current line
+                    current_line.append((word, style))
+                    current_width += word_width
+                else:
+                    # Start new line
+                    lines.append(current_line)
+                    current_line = [(word.lstrip(), style)]
+                    current_width = self._get_styled_segment_width(word.lstrip(), style)
+
+        # Add final line if it has content
+        if current_line:
+            lines.append(current_line)
+
+        return lines if lines else [[('', self.STYLE_NORMAL)]]
 
     def _draw_retro_border(self, screen: pygame.Surface, rect: pygame.Rect, role: str):
         """
@@ -582,7 +647,7 @@ class MessageRenderer:
 
     def calculate_messages_height(self, messages: List[Dict]) -> int:
         """
-        Calculate total height needed for all messages
+        Calculate total height needed for all messages (with markdown support)
 
         Args:
             messages: List of message dicts
@@ -595,14 +660,16 @@ class MessageRenderer:
         for message in messages:
             content = message.get('content', '')
             content_width = self.max_width - 2 * self.padding
-            lines = self.wrap_text(content, content_width)
+
+            # Parse markdown and wrap styled segments
+            styled_segments = self.parse_markdown(content)
+            wrapped_lines = self._wrap_styled_segments(styled_segments, content_width)
 
             line_height = self.font_medium.get_height()
             message_height = (
                 2 * self.padding +
-                len(lines) * line_height +
-                (len(lines) - 1) * self.line_spacing +
-                self.font_small.get_height() + 5 +
+                len(wrapped_lines) * line_height +
+                (len(wrapped_lines) - 1) * self.line_spacing +
                 10  # Spacing after message
             )
 
