@@ -355,20 +355,20 @@ class PygameGUI:
         # Chat UI fonts (FindersKeepers - Geneva recreation, scaled up for readability)
         finders_path = os.path.join(fonts_dir, "FindersKeepers.ttf")
         if os.path.exists(finders_path):
-            self.chat_font_small = pygame.font.Font(finders_path, 16)
-            self.chat_font_medium = pygame.font.Font(finders_path, 18)
-            self.chat_font_large = pygame.font.Font(finders_path, 24)
+            self.chat_font_small = pygame.font.Font(finders_path, 20)
+            self.chat_font_medium = pygame.font.Font(finders_path, 24)
+            self.chat_font_large = pygame.font.Font(finders_path, 32)
         else:
             # Fallback to Pixeloid for chat
             if os.path.exists(font_path):
-                self.chat_font_small = pygame.font.Font(font_path, 14)
-                self.chat_font_medium = pygame.font.Font(font_path, 18)
-                self.chat_font_large = pygame.font.Font(font_path, 28)
+                self.chat_font_small = pygame.font.Font(font_path, 20)
+                self.chat_font_medium = pygame.font.Font(font_path, 24)
+                self.chat_font_large = pygame.font.Font(font_path, 32)
             else:
                 # Final fallback
-                self.chat_font_small = pygame.font.Font(None, 18)
+                self.chat_font_small = pygame.font.Font(None, 20)
                 self.chat_font_medium = pygame.font.Font(None, 24)
-                self.chat_font_large = pygame.font.Font(None, 36)
+                self.chat_font_large = pygame.font.Font(None, 32)
 
     def _calculate_player_positions(self):
         """Calculate positions for players around the table"""
