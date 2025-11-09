@@ -59,6 +59,8 @@ class PygameGUI:
         self.enable_chat = enable_chat
 
         # Create fullscreen window
+        self.is_fullscreen = True
+        self.windowed_size = window_size  # Store windowed size for toggling
         self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
         self.window_size = self.screen.get_size()  # Get actual fullscreen resolution
         pygame.display.set_caption("Poker.ev - AI Poker Application + Advisor")
@@ -873,6 +875,28 @@ class PygameGUI:
             self.chat_visible = not self.chat_visible
             status = "shown" if self.chat_visible else "hidden"
             self.set_message(f"Chat panel {status} (Tab to toggle)")
+
+    def toggle_fullscreen(self):
+        """Toggle between fullscreen and windowed mode"""
+        self.is_fullscreen = not self.is_fullscreen
+
+        if self.is_fullscreen:
+            # Switch to fullscreen
+            self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+            self.window_size = self.screen.get_size()
+            self.set_message("Fullscreen mode (ESC to exit)")
+        else:
+            # Switch to windowed mode
+            self.screen = pygame.display.set_mode(self.windowed_size)
+            self.window_size = self.windowed_size
+            self.set_message("Windowed mode (ESC for fullscreen)")
+
+        # Reinitialize chat panel with new window size if enabled
+        if self.enable_chat and self.chat_panel:
+            self._init_chat_panel()
+
+        # Recalculate player positions for new window size
+        self.player_positions = self._calculate_player_positions()
 
     def _action_to_string(self, action: ActionType, amount: int = 0) -> str:
         """Convert action to readable string"""

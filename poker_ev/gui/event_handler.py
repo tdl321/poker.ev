@@ -190,8 +190,12 @@ class EventHandler:
 
         # UI controls
         elif key == pygame.K_ESCAPE:
-            # Cancel raise input
-            self.gui.cancel_raise()
+            # If showing raise input, cancel it
+            if self.gui.showing_raise_input:
+                self.gui.cancel_raise()
+            else:
+                # Otherwise, toggle fullscreen
+                self.gui.toggle_fullscreen()
             return True
         elif key == pygame.K_TAB:
             # Toggle chat panel visibility
