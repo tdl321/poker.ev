@@ -72,6 +72,7 @@ class PygameGUI:
         self.showing_raise_input = False
         self.raise_amount = 0
         self.raise_percentage = 0.0
+        self.game_over = False
 
         # Animation state
         self.message = ""
@@ -218,7 +219,27 @@ class PygameGUI:
         clock = pygame.time.Clock()
         running = True
 
-        while running and self.game.is_game_running():
+        while running:
+            # Check if player is busted
+            if not self.game_over and self.game.is_player_busted():
+                self.game_over = True
+                self.set_message("Game Over - You're out of chips!", duration=9999)
+
+            # If game over, just show the game over screen
+            if self.game_over:
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        running = False
+
+                self.render_game_over()
+                pygame.display.flip()
+                clock.tick(60)
+                continue
+
+            # Normal game flow
+            if not self.game.is_game_running():
+                break
+
             # Start new hand if needed
             if not self.game.is_hand_running():
                 self.game.start_new_hand()
@@ -521,6 +542,36 @@ class PygameGUI:
         pygame.draw.rect(self.screen, self.GOLD_COLOR, bg_rect, 2)
 
         self.screen.blit(text, text_rect)
+
+    def render_game_over(self):
+        """Render game over screen"""
+        # Fill background
+        self.screen.fill(self.BG_COLOR)
+
+        # Center coordinates
+        center_x = self.window_size[0] // 2
+        center_y = self.window_size[1] // 2
+
+        # Display game over image if available
+        if 'gameover' in self.button_sprites:
+            gameover_sprite = self.button_sprites['gameover']
+            sprite_rect = gameover_sprite.get_rect(center=(center_x, center_y - 100))
+            self.screen.blit(gameover_sprite, sprite_rect)
+        else:
+            # Fallback text if image not found
+            title_text = self.font_large.render("GAME OVER", True, self.RED_COLOR)
+            title_rect = title_text.get_rect(center=(center_x, center_y - 100))
+            self.screen.blit(title_text, title_rect)
+
+        # Display message
+        message_text = self.font_medium.render("You're out of chips!", True, self.TEXT_COLOR)
+        message_rect = message_text.get_rect(center=(center_x, center_y + 50))
+        self.screen.blit(message_text, message_rect)
+
+        # Instructions
+        instruction_text = self.font_small.render("Close the window to exit", True, self.TEXT_COLOR)
+        instruction_rect = instruction_text.get_rect(center=(center_x, center_y + 100))
+        self.screen.blit(instruction_text, instruction_rect)
 
     # ==================== Action Handlers ====================
 

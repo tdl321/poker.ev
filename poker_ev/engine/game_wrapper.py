@@ -206,6 +206,12 @@ class PokerGame:
         """Check if game is still active (at least 2 players)"""
         return self.engine.is_game_running()
 
+    def is_player_busted(self) -> bool:
+        """Check if player 0 (human) has run out of chips"""
+        if len(self.engine.players) == 0:
+            return True
+        return self.engine.players[0].chips <= 0
+
     def get_hand_history(self) -> str:
         """
         Get the current hand history
