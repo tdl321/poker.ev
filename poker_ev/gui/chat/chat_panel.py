@@ -295,7 +295,11 @@ class ChatPanel:
         # Draw panel background
         pygame.draw.rect(screen, self.PANEL_BG, self.rect)
 
-        # Draw panel borders (left, right, bottom - no top border)
+        # Draw panel borders (top, left, right, bottom)
+        # Top border
+        pygame.draw.line(screen, self.BORDER_COLOR,
+                        (self.rect.left, self.rect.top),
+                        (self.rect.right, self.rect.top), 2)
         # Left border
         pygame.draw.line(screen, self.BORDER_COLOR,
                         (self.rect.left, self.rect.top),
@@ -332,7 +336,7 @@ class ChatPanel:
         )
 
     def _render_header(self, screen: pygame.Surface):
-        """Render System 6-style title bar header"""
+        """Render title bar header"""
         # Header background
         pygame.draw.rect(screen, self.HEADER_BG, self.header_rect)
 
@@ -342,22 +346,6 @@ class ChatPanel:
         title_x = self.header_rect.centerx - title_surface.get_width() // 2
         title_y = self.header_rect.centery - title_surface.get_height() // 2
         screen.blit(title_surface, (title_x, title_y))
-
-        # Bottom border with double line (classic separator)
-        pygame.draw.line(
-            screen,
-            self.ACCENT_PRIMARY,
-            (self.header_rect.left, self.header_rect.bottom - 2),
-            (self.header_rect.right, self.header_rect.bottom - 2),
-            1
-        )
-        pygame.draw.line(
-            screen,
-            self.ACCENT_DIM,
-            (self.header_rect.left, self.header_rect.bottom - 1),
-            (self.header_rect.right, self.header_rect.bottom - 1),
-            1
-        )
 
     def _render_messages(self, screen: pygame.Surface):
         """Render all messages with scrolling"""
