@@ -22,6 +22,9 @@ class MessageRenderer:
     BORDER_COLOR = (0, 255, 0)       # Neon green borders
     TIMESTAMP_COLOR = (0, 150, 0)    # Dimmed green for timestamps
 
+    # Card suit symbols that need Unicode font
+    SUIT_SYMBOLS = ['♠', '♥', '♦', '♣']
+
     def __init__(self, font_small, font_medium, max_width: int = 350):
         """
         Initialize message renderer
@@ -37,9 +40,15 @@ class MessageRenderer:
         self.padding = 10
         self.line_spacing = 5
 
+        # Create Unicode-compatible system font for card suit symbols
+        # Use same size as medium font for consistency
+        medium_height = font_medium.get_height()
+        # System font (None) supports Unicode symbols
+        self.font_symbols = pygame.font.Font(None, int(medium_height * 1.2))
+
     def wrap_text(self, text: str, max_width: int) -> List[str]:
         """
-        Wrap text to fit within max width
+        Wrap text to fit within max width (handles mixed fonts)
 
         Args:
             text: Text to wrap
@@ -54,9 +63,10 @@ class MessageRenderer:
 
         for word in words:
             test_line = f"{current_line} {word}".strip()
-            test_surface = self.font_medium.render(test_line, True, (255, 255, 255))
+            # Use mixed-font width calculation
+            test_width = self._get_mixed_font_width(test_line)
 
-            if test_surface.get_width() <= max_width:
+            if test_width <= max_width:
                 current_line = test_line
             else:
                 if current_line:
@@ -67,6 +77,111 @@ class MessageRenderer:
             lines.append(current_line)
 
         return lines if lines else [text]
+
+    def _split_text_segments(self, text: str) -> List[Tuple[str, bool]]:
+        """
+        Split text into segments of regular text and suit symbols
+
+        Args:
+            text: Text to split
+
+        Returns:
+            List of (segment, is_symbol) tuples
+        """
+        segments = []
+        current_segment = ""
+        is_current_symbol = False
+
+        for char in text:
+            char_is_symbol = char in self.SUIT_SYMBOLS
+
+            if not current_segment:
+                # Start new segment
+                current_segment = char
+                is_current_symbol = char_is_symbol
+            elif char_is_symbol == is_current_symbol:
+                # Continue current segment
+                current_segment += char
+            else:
+                # Different type - save current and start new
+                segments.append((current_segment, is_current_symbol))
+                current_segment = char
+                is_current_symbol = char_is_symbol
+
+        # Add final segment
+        if current_segment:
+            segments.append((current_segment, is_current_symbol))
+
+        return segments
+
+    def _render_mixed_font_line(
+        self,
+        screen: pygame.Surface,
+        text: str,
+        x: int,
+        y: int,
+        color: Tuple[int, int, int]
+    ) -> int:
+        """
+        Render a line with mixed fonts (retro for text, system for symbols)
+
+        Args:
+            screen: Surface to draw on
+            text: Text to render
+            x: X position
+            y: Y position
+            color: Text color
+
+        Returns:
+            Width of rendered text
+        """
+        segments = self._split_text_segments(text)
+        current_x = x
+        total_width = 0
+
+        for segment, is_symbol in segments:
+            # Choose font based on segment type
+            font = self.font_symbols if is_symbol else self.font_medium
+
+            # Render segment
+            surface = font.render(segment, True, color)
+
+            # Align vertically (symbols might be different height)
+            segment_y = y
+            if is_symbol:
+                # Center symbol vertically with text
+                text_height = self.font_medium.get_height()
+                symbol_height = surface.get_height()
+                segment_y = y + (text_height - symbol_height) // 2
+
+            screen.blit(surface, (current_x, segment_y))
+
+            # Move x position for next segment
+            segment_width = surface.get_width()
+            current_x += segment_width
+            total_width += segment_width
+
+        return total_width
+
+    def _get_mixed_font_width(self, text: str) -> int:
+        """
+        Get the width of text with mixed fonts
+
+        Args:
+            text: Text to measure
+
+        Returns:
+            Width in pixels
+        """
+        segments = self._split_text_segments(text)
+        total_width = 0
+
+        for segment, is_symbol in segments:
+            font = self.font_symbols if is_symbol else self.font_medium
+            width = font.size(segment)[0]
+            total_width += width
+
+        return total_width
 
     def render_message(
         self,
@@ -112,19 +227,21 @@ class MessageRenderer:
         line_height = self.font_medium.get_height()
         message_height = len(lines) * (line_height + self.line_spacing)
 
-        # Terminal-style rendering: simple text, no backgrounds
+        # Terminal-style rendering: simple text with mixed fonts for symbols
         text_y = y + self.padding
         for line in lines:
-            text_surface = self.font_medium.render(line, True, text_color)
+            # Calculate line width for alignment
+            line_width = self._get_mixed_font_width(line)
 
             if align_right:
                 # User messages on right
-                text_x = x + self.max_width - text_surface.get_width() - self.padding
+                text_x = x + self.max_width - line_width - self.padding
             else:
                 # AI/System messages on left
                 text_x = x + self.padding
 
-            screen.blit(text_surface, (text_x, text_y))
+            # Render line with mixed fonts (retro + Unicode)
+            self._render_mixed_font_line(screen, line, text_x, text_y, text_color)
             text_y += line_height + self.line_spacing
 
         return message_height + self.padding * 2  # Add spacing after message
