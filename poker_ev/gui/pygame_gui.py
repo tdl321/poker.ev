@@ -137,7 +137,8 @@ class PygameGUI:
 
         # Initialize poker advisor
         try:
-            game_context = GameContextProvider(self.game)
+            # Use ASCII format for card display (better terminal/chat compatibility)
+            game_context = GameContextProvider(self.game, card_format='ascii')
             self.poker_advisor = PokerAdvisor(
                 game_context_provider=game_context,
                 decision_tracker=self.decision_tracker,  # Will be None if tracking disabled
@@ -171,7 +172,8 @@ class PygameGUI:
             if any(keyword in message.lower() for keyword in current_hand_keywords):
                 try:
                     from poker_ev.llm.game_context import GameContextProvider
-                    context_provider = GameContextProvider(self.game)
+                    # Use ASCII format for better chat display compatibility
+                    context_provider = GameContextProvider(self.game, card_format='ascii')
                     current_situation = context_provider.get_full_context(include_pot_odds=False)
                     # Prepend the current game state to the message
                     enhanced_message = f"[CURRENT GAME STATE - Use ONLY these cards, not any from past hands]\n{current_situation}\n\n[USER QUERY]\n{message}"

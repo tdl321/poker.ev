@@ -313,13 +313,31 @@ You: *reads [CURRENT GAME STATE] block in the user message* → Sees 5♠ K♦ �
 - Always explain your reasoning
 - Reference specific cards/numbers from the game state
 
-**4. Teaching Best Practices**:
+**4. Response Formatting** ⚠️ CRITICAL FOR READABILITY:
+- Use **consistent formatting** throughout your responses
+- Keep spacing uniform (no random bold/italic in middle of sentences)
+- Structure with clear sections when providing multi-point analysis
+- Use simple, clean formatting (avoid excessive styling)
+- Card references: Use ASCII format (e.g., "4d 7d" not "4♦ 7♦")
+- Example good format:
+  ```
+  Your Decision: RAISE
+
+  Here's why:
+  - Hand Strength: Pocket Kings (Kd Kc) are premium (~82% equity vs random hands)
+  - Pot Odds: Getting 4.7:1, requiring only 21.4% to break even
+  - Position: Big Blind means you're out of position, but Kings are strong enough to raise
+
+  Bottom line: Raise to build the pot and protect your hand.
+  ```
+
+**5. Teaching Best Practices**:
 - ONE concept at a time
 - Use examples from auto-provided game state when available
 - Check understanding before advancing
 - Progressive difficulty (Fundamentals → Outs → Pot Odds → EV → Implied Odds)
 
-**5. Tool-First Approach** ⭐ CRITICAL:
+**6. Tool-First Approach** ⭐ CRITICAL:
 - **NEVER search RAG for**: Pot odds, outs, equity, hand rankings, position strategy, EV calculations
 - **ALWAYS use tools for**: All math, calculations, probabilities, hand evaluations
 - **ONLY search RAG for**: Implied odds, opponent psychology, common mistakes, strategic concepts
@@ -540,7 +558,11 @@ Note: The game state above is automatically provided for your context. Use it to
         user_query: str
     ) -> Generator[str, None, None]:
         """
-        Get poker advice with streaming response
+        Get poker advice with TRUE streaming (immediate feedback)
+
+        Uses native LangChain agent.stream() for real-time token streaming.
+        Shows intermediate agent steps (tool calls) and streams response as
+        LLM generates it (no artificial delays).
 
         Automatically injects current game state into every query to ensure
         the LLM always has card/board/pot context available.
@@ -549,42 +571,60 @@ Note: The game state above is automatically provided for your context. Use it to
             user_query: User's question
 
         Yields:
-            Text chunks for smooth streaming display
+            Text chunks (word-by-word) and tool indicators as they arrive
         """
         try:
             # Build context-enhanced query with automatic game state injection
             enhanced_query = self._build_context_enhanced_query(user_query)
 
-            # Get response from agent (agents with tools need to run synchronously)
-            result = self.agent.invoke({
+            # Word buffer for word-by-word streaming (smoother than token-by-token)
+            word_buffer = ""
+
+            # Stream response using native LangChain streaming
+            for token, metadata in self.agent.stream({
                 "messages": [{"role": "user", "content": enhanced_query}]
-            })
+            }, stream_mode="messages"):
 
-            # Extract final text answer
-            response_text = ""
-            if isinstance(result, dict) and "messages" in result:
-                for message in reversed(result["messages"]):
-                    if hasattr(message, "content") and message.content:
-                        if isinstance(message.content, str) and not message.content.strip().startswith("{"):
-                            response_text = message.content
-                            break
-                    elif isinstance(message, dict) and "content" in message:
-                        content = message.get("content", "")
-                        if content and not content.strip().startswith("{"):
-                            response_text = content
-                            break
+                # Show intermediate steps: tool calls
+                if hasattr(token, 'tool_calls') and token.tool_calls:
+                    for tool_call in token.tool_calls:
+                        tool_name = tool_call.get('name', 'unknown')
+                        yield f"\n🔧 Using tool: {tool_name}...\n"
 
-            if not response_text:
-                response_text = str(result)
+                # Stream text content (word-by-word)
+                if hasattr(token, 'content') and token.content:
+                    content = token.content
 
-            # Stream response character by character for smooth display
-            import time
-            for char in response_text:
-                yield char
-                time.sleep(0.01)  # Small delay for smooth streaming effect
+                    # Handle string content
+                    if isinstance(content, str):
+                        word_buffer += content
+
+                        # Yield complete words when we encounter spaces or newlines
+                        while ' ' in word_buffer or '\n' in word_buffer:
+                            # Find the first word boundary
+                            space_idx = word_buffer.find(' ')
+                            newline_idx = word_buffer.find('\n')
+
+                            # Determine which comes first
+                            if space_idx == -1:
+                                split_idx = newline_idx
+                                delimiter = '\n'
+                            elif newline_idx == -1:
+                                split_idx = space_idx
+                                delimiter = ' '
+                            else:
+                                split_idx = min(space_idx, newline_idx)
+                                delimiter = word_buffer[split_idx]
+
+                            # Yield the word plus its delimiter
+                            word = word_buffer[:split_idx + 1]
+                            yield word
+                            word_buffer = word_buffer[split_idx + 1:]
+
+            # Flush remaining buffer
+            if word_buffer:
+                yield word_buffer
 
         except Exception as e:
             logger.error(f"Error streaming advice: {e}", exc_info=True)
-            error_msg = f"Sorry, I encountered an error: {str(e)}"
-            for char in error_msg:
-                yield char
+            yield f"\n⚠️ Sorry, I encountered an error: {str(e)}"
